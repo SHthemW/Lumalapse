@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -22,10 +22,19 @@ import pyqtgraph as pg
 
 from ..keyframes import PARAM_DEFAULTS, PARAM_RANGES
 from .param_controls import PARAM_LABELS, PARAM_STEPS, ParamSlider
+from .preview_view import PreviewView
+
+
+PREVIEW_QUALITY_OPTIONS = [
+    ("低 (720P)", (720, False)),
+    ("标准 (1200P)", (1200, False)),
+    ("高 (2160P)", (2160, False)),
+    ("原画", (None, False)),
+]
 
 
 def build_menu(win):
-    menu = win.menuBar().addMenu("文件(&F)")
+    file_menu = win.menuBar().addMenu("文件(&F)")
     for text, slot, key in [
         ("打开图片文件夹...", win.open_folder, "Ctrl+O"),
         ("打开项目...", win.open_project, "Ctrl+Shift+O"),
@@ -35,16 +44,27 @@ def build_menu(win):
         action = QAction(text, win)
         action.setShortcut(key)
         action.triggered.connect(slot)
-        menu.addAction(action)
+        file_menu.addAction(action)
+
+    settings_menu = win.menuBar().addMenu("设置")
+    quality_menu = settings_menu.addMenu("预览画质")
+    group = QActionGroup(win)
+    group.setExclusive(True)
+    win.preview_quality_actions = []
+    for text, data in PREVIEW_QUALITY_OPTIONS:
+        action = QAction(text, win)
+        action.setCheckable(True)
+        action.setData(data)
+        action.triggered.connect(win._on_preview_quality_changed)
+        group.addAction(action)
+        quality_menu.addAction(action)
+        win.preview_quality_actions.append(action)
+    win.preview_quality_actions[1].setChecked(True)
 
 
 def build_ui(win):
-    win.preview_label = QLabel("文件 -> 打开图片文件夹... (支持 RAW/JPEG/TIFF 序列)")
-    win.preview_label.setAlignment(Qt.AlignCenter)
-    win.preview_label.setMinimumHeight(300)
-    win.preview_label.setStyleSheet("background:#161616;color:#888;")
-
-    win.loading_label = QLabel("渲染中...", win.preview_label)
+    win.preview_view = PreviewView()
+    win.loading_label = QLabel("渲染中...", win.preview_view)
     win.loading_label.setStyleSheet(
         "background:rgba(0,0,0,160);color:#ddd;padding:4px 12px;border-radius:4px;"
     )
@@ -82,7 +102,7 @@ def build_ui(win):
     left_layout = QVBoxLayout(left)
     left_layout.setContentsMargins(4, 4, 4, 4)
     split = QSplitter(Qt.Vertical)
-    split.addWidget(win.preview_label)
+    split.addWidget(win.preview_view)
     split.addWidget(win.plot)
     split.setStretchFactor(0, 3)
     split.setStretchFactor(1, 1)
@@ -170,3 +190,5 @@ def set_controls_enabled(win, enabled: bool):
     )
     for control in controls:
         control.setEnabled(enabled)
+    for action in win.preview_quality_actions:
+        action.setEnabled(enabled)

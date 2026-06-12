@@ -16,8 +16,6 @@ from .export_dialog import ExportDialog
 from .layout import build_menu, build_ui, set_controls_enabled
 from .threads import AnalyzeThread, ExportThread, InstallRTThread, PreviewThread
 
-PREVIEW_MAX_DIM = 1100
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -29,7 +27,7 @@ class MainWindow(QMainWindow):
         self._loading_panel = False
         self._preview_pixmap: QPixmap | None = None
 
-        self.preview_thread = PreviewThread(PREVIEW_MAX_DIM)
+        self.preview_thread = PreviewThread()
         self.preview_thread.rendered.connect(self._on_preview_rendered)
         self.preview_thread.failed.connect(self._on_preview_failed)
         self._preview_timer = QTimer(self, singleShot=True, interval=60)
@@ -41,6 +39,11 @@ class MainWindow(QMainWindow):
 
     def _set_enabled(self, enabled: bool):
         set_controls_enabled(self, enabled)
+
+    def _preview_request_settings(self) -> tuple[int | None, bool]:
+        action = next(action for action in self.preview_quality_actions if action.isChecked())
+        max_dim, half_size = action.data()
+        return max_dim, half_size
 
     def _on_engine_changed(self):
         if self.project is None:
@@ -229,6 +232,10 @@ class MainWindow(QMainWindow):
         self.refresh_curves()
         self._preview_timer.start()
 
+    def _on_preview_quality_changed(self):
+        if self.project is not None:
+            self._preview_timer.start()
+
     def refresh_curves(self):
         project = self.project
         lum = np.asarray(project.analysis["luminance"], dtype=float)
@@ -238,12 +245,14 @@ class MainWindow(QMainWindow):
         self.curve_out.setData(x, lum + params["exposure"])
         kx = [keyframe.frame for keyframe in project.keyframes]
         self.kf_scatter.setData(kx, lum[kx] + params["exposure"][kx] if kx else [])
+
     def _request_preview(self):
         if self.project is None:
             return
         self.loading_label.show()
         self.loading_label.raise_()
-        self.preview_thread.request(self.project, self.current_frame, self.project.frame_params())
+        max_dim, half_size = self._preview_request_settings()
+        self.preview_thread.request(self.project, self.current_frame, self.project.frame_params(), max_dim, half_size)
 
     def _on_preview_failed(self, message: str):
         self.loading_label.hide()
@@ -254,16 +263,7 @@ class MainWindow(QMainWindow):
         height, width = frame.shape[:2]
         image = QImage(frame.data, width, height, 3 * width, QImage.Format_RGB888).copy()
         self._preview_pixmap = QPixmap.fromImage(image)
-        self._update_preview_label()
-
-    def _update_preview_label(self):
-        if self._preview_pixmap:
-            self.preview_label.setPixmap(
-                self._preview_pixmap.scaled(self.preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            )
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._update_preview_label()
+        self.preview_view.set_pixmap(self._preview_pixmap)
 
     def export_video(self):
         if self.project is None:

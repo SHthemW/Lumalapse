@@ -26,19 +26,16 @@ class AnalyzeThread(QThread):
 
 
 class PreviewThread(QThread):
-    """Render preview frames one at a time and keep only the newest request."""
-
     rendered = Signal(int, object)
     failed = Signal(str)
 
-    def __init__(self, max_dim: int):
+    def __init__(self):
         super().__init__()
-        self.max_dim = max_dim
         self._pending = None
         self._quit = False
 
-    def request(self, project: Project, idx: int, params):
-        self._pending = (project, idx, params)
+    def request(self, project: Project, idx: int, params, max_dim: int | None, half_size: bool):
+        self._pending = (project, idx, params, max_dim, half_size)
         if not self.isRunning():
             self.start()
 
@@ -53,9 +50,9 @@ class PreviewThread(QThread):
                 self.msleep(30)
                 continue
             self._pending = None
-            project, idx, params = job
+            project, idx, params, max_dim, half_size = job
             try:
-                frame = render_frame(project, idx, params, half_size=True, max_dim=self.max_dim, cache=True)
+                frame = render_frame(project, idx, params, half_size=half_size, max_dim=max_dim, cache=True)
                 if self._pending is None:
                     self.rendered.emit(idx, frame)
             except Exception as exc:
@@ -65,8 +62,6 @@ class PreviewThread(QThread):
 
 
 class InstallRTThread(QThread):
-    """Download and install RawTherapee."""
-
     message = Signal(str)
     done = Signal(object)
 
