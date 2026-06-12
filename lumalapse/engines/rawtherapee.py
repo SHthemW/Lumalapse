@@ -174,6 +174,38 @@ def find_adobe_dcp(camera_model: str | None) -> str | None:
     return result
 
 
+def adobe_profiles_status() -> dict:
+    """Whether Adobe's camera profile set (DNG Converter / Camera Raw) is
+    installed, and where. {"installed": bool, "dir": str|None, "count": int}"""
+    for root in ADOBE_PROFILE_DIRS:
+        if root.is_dir():
+            count = sum(1 for _ in root.rglob("*.dcp"))
+            if count:
+                return {"installed": True, "dir": str(root), "count": count}
+    return {"installed": False, "dir": None, "count": 0}
+
+
+DNG_CONVERTER_URL = "https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html"
+
+
+def install_dng_converter(progress=None) -> bool:
+    """Install Adobe DNG Converter via winget (free; ships Adobe's camera
+    color profiles). Returns True when profiles are present afterwards."""
+    winget = shutil.which("winget")
+    if winget:
+        if progress:
+            progress("正在通过 winget 下载并安装 Adobe DNG Converter…")
+        try:
+            subprocess.run(
+                [winget, "install", "Adobe.DNGConverter", "--silent",
+                 "--accept-source-agreements", "--accept-package-agreements"],
+                capture_output=True, timeout=1800, creationflags=NO_WINDOW)
+        except Exception:
+            pass
+    _adobe_dcp_cache.clear()
+    return adobe_profiles_status()["installed"]
+
+
 def _color_management_lines(dcp_path: str | None = None) -> list[str]:
     """DCP camera color profile selection.
 

@@ -188,6 +188,22 @@ def _build_engine_box(win) -> QGroupBox:
     note = QLabel("RawTherapee 引擎预览较慢,\n但色彩科学与高光重建更佳")
     note.setStyleSheet("color:#888;")
     form.addRow(note)
+
+    win.adobe_status = QLabel("Adobe DCP:检测中…")
+    win.adobe_status.setWordWrap(True)
+    win.adobe_status.setStyleSheet("color:#888;")
+    form.addRow(win.adobe_status)
+    win.dcp_status = QLabel("")
+    win.dcp_status.setWordWrap(True)
+    win.dcp_status.setStyleSheet("color:#888;")
+    form.addRow(win.dcp_status)
+    win.btn_install_adobe = QPushButton("安装 Adobe DNG Converter…")
+    win.btn_install_adobe.setToolTip(
+        "免费工具,附带 Adobe 官方相机色彩校准档 (DCP)。\n"
+        "安装后 RawTherapee 引擎自动改用 Adobe 校准,色彩最接近 Lightroom。")
+    win.btn_install_adobe.clicked.connect(win.install_adobe_dcp)
+    win.btn_install_adobe.hide()
+    form.addRow(win.btn_install_adobe)
     return box
 
 

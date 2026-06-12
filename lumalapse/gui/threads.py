@@ -96,6 +96,20 @@ class InstallRTThread(QThread):
             self.done.emit(None)
 
 
+class InstallAdobeDCPThread(QThread):
+    message = Signal(str)
+    done = Signal(bool)
+
+    def run(self):
+        from ..engines.rawtherapee import install_dng_converter
+
+        try:
+            self.done.emit(install_dng_converter(progress=self.message.emit))
+        except Exception:
+            traceback.print_exc()
+            self.done.emit(False)
+
+
 class ExportThread(QThread):
     progressed = Signal(int, int)
     finished_ok = Signal(str)

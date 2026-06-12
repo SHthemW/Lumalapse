@@ -203,7 +203,15 @@ def engine(project_path, name):
 
     proj = _load_project(project_path)
     if name is None:
+        from .engines.rawtherapee import adobe_profiles_status
+
         click.echo(f"Engine: {proj.engine}")
+        status = adobe_profiles_status()
+        if status["installed"]:
+            click.echo(f"Adobe DCP profiles: installed ({status['count']} cameras, {status['dir']})")
+        else:
+            click.echo("Adobe DCP profiles: not installed - RawTherapee engine uses its "
+                       "bundled calibration (install Adobe DNG Converter for Adobe color)")
         return
     eng = get_engine(name)
     if not eng.is_available():

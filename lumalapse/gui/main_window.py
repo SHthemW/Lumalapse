@@ -14,8 +14,9 @@ from ..project import PROJECT_SUFFIX, Project
 from ..settings import load_settings, update_settings
 from .export_dialog import ExportDialog
 from .layout import build_menu, build_ui, set_controls_enabled
-from .threads import (AnalyzeThread, ExportThread, FramesExportThread, InstallRTThread,
-                      PreviewThread, VisualDeflickerThread)
+from .threads import (AnalyzeThread, ExportThread, FramesExportThread,
+                      InstallAdobeDCPThread, InstallRTThread, PreviewThread,
+                      VisualDeflickerThread)
 
 
 class MainWindow(QMainWindow):
@@ -37,6 +38,7 @@ class MainWindow(QMainWindow):
         build_menu(self)
         build_ui(self)
         self._set_enabled(False)
+        self._update_adobe_status()
 
     def _set_enabled(self, enabled: bool):
         set_controls_enabled(self, enabled)
@@ -164,6 +166,7 @@ class MainWindow(QMainWindow):
         if not has_ev:
             self.hg_enable.setToolTip("此序列没有 EXIF 曝光数据,圣杯补偿不可用")
         self._update_visual_df_status()
+        self._update_adobe_status()
         self.setWindowTitle(f"Lumalapse - {Path(project.folder).name} ({n_frames} 帧)")
         self.current_frame = -1
         self.refresh_curves()
@@ -326,6 +329,70 @@ class MainWindow(QMainWindow):
         prog.canceled.connect(lambda: setattr(thread, "cancelled", True))
         self._export_thread = thread
         thread.start()
+
+    def _update_adobe_status(self):
+        """Adobe DNG Converter install state + which DCP this sequence gets."""
+        import os
+
+        from ..engines.rawtherapee import adobe_profiles_status, find_adobe_dcp
+
+        status = adobe_profiles_status()
+        if status["installed"]:
+            self.adobe_status.setText(f"Adobe DCP:已安装({status['count']} 个相机校准档)")
+            self.btn_install_adobe.hide()
+        else:
+            self.adobe_status.setText("Adobe DCP:未安装(RawTherapee 引擎使用内置校准)")
+            self.btn_install_adobe.show()
+
+        if self.project is None:
+            self.dcp_status.setText("")
+            return
+        from .. import loader
+
+        model = loader.read_metadata(self.project.files[0]).get("model")
+        env = os.environ.get("LUMALAPSE_DCP")
+        if env and Path(env).exists():
+            source = f"强制指定 {Path(env).name}"
+        elif (adobe := find_adobe_dcp(model)):
+            source = f"Adobe Standard({model})✓"
+        elif model:
+            source = f"RawTherapee 自动匹配({model})"
+        else:
+            source = "无相机型号信息,标准色彩矩阵"
+        self.dcp_status.setText(f"本序列色彩档:{source}")
+
+    def install_adobe_dcp(self):
+        dlg = QProgressDialog("正在准备下载…", None, 0, 0, self)
+        dlg.setWindowTitle("安装 Adobe DNG Converter")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(0)
+        thread = InstallAdobeDCPThread()
+        thread.message.connect(dlg.setLabelText)
+
+        def on_done(ok: bool):
+            dlg.close()
+            if ok:
+                QMessageBox.information(
+                    self, "Lumalapse",
+                    "Adobe DNG Converter 安装完成,相机色彩校准档已就绪。\n"
+                    "RawTherapee 引擎此后自动使用 Adobe 校准。")
+            else:
+                import webbrowser
+
+                from ..engines.rawtherapee import DNG_CONVERTER_URL
+
+                webbrowser.open(DNG_CONVERTER_URL)
+                QMessageBox.information(
+                    self, "Lumalapse",
+                    "自动安装未成功,已打开 Adobe 官方下载页面。\n"
+                    "手动安装完成后重新打开图片文件夹即可生效。")
+            self._update_adobe_status()
+            self._preview_timer.start()
+
+        thread.done.connect(on_done)
+        self._adobe_thread = thread
+        thread.start()
+        dlg.exec()
 
     def export_frames_seq(self):
         """Develop all frames to a JPG sequence (inspect/retouch, then assemble)."""
