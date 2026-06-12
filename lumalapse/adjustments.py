@@ -18,6 +18,23 @@ from .loader import linear_to_srgb
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 
+def _guided_filter(guide: np.ndarray, src: np.ndarray, radius: int, eps: float) -> np.ndarray:
+    """Edge-preserving guided filter (He et al. 2010), box-filter based.
+
+    Hand-rolled because cv2.ximgproc lives in opencv-contrib, which is not a
+    dependency — the previous bilateral stand-in had a fixed tiny support and
+    could not smooth patch-sized terraces out of the transmission map.
+    """
+    ksize = (radius * 2 + 1, radius * 2 + 1)
+    mean_g = cv2.blur(guide, ksize)
+    mean_s = cv2.blur(src, ksize)
+    cov_gs = cv2.blur(guide * src, ksize) - mean_g * mean_s
+    var_g = cv2.blur(guide * guide, ksize) - mean_g * mean_g
+    a = cov_gs / (var_g + eps)
+    b = mean_s - a * mean_g
+    return cv2.blur(a, ksize) * guide + cv2.blur(b, ksize)
+
+
 def dehaze_dark_channel(img: np.ndarray, strength: float, omega: float = 0.85, t_min: float = 0.15) -> np.ndarray:
     """Dark-channel-prior dehaze on a display-referred (gamma) float RGB image.
 
@@ -39,10 +56,11 @@ def dehaze_dark_channel(img: np.ndarray, strength: float, omega: float = 0.85, t
 
     norm_dark = cv2.erode((img / atmo).min(axis=2), cv2.getStructuringElement(cv2.MORPH_RECT, (patch, patch)))
     trans = 1.0 - omega * norm_dark
-    # Edge-aware refinement of the transmission map (cheap guided-filter stand-in).
+    # Edge-aware refinement: the rectangular min-filter terraces smooth sky
+    # gradients into patch-sized blocks; the guided filter flattens those
+    # while snapping the map back to real edges.
     gray = (img @ LUMA).astype(np.float32)
-    trans = cv2.ximgproc.guidedFilter(gray, trans.astype(np.float32), patch * 2, 1e-3) \
-        if hasattr(cv2, "ximgproc") else cv2.bilateralFilter(trans.astype(np.float32), 9, 0.1, patch * 2)
+    trans = _guided_filter(gray, trans.astype(np.float32), radius=patch * 2, eps=1e-4)
     trans = np.clip(trans, t_min, 1.0)[:, :, None]
 
     dehazed = (img - atmo) / trans + atmo
