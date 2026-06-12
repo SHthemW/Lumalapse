@@ -72,6 +72,23 @@ lumalapse assemble D:\timelapse\developed -o out.mp4 --fps 25
 
 `--half-size` 可让 RAW 以半分辨率解拜耳,速度提升约 4 倍,适合预览版导出。
 
+## 与 Adobe Camera Raw / Lightroom 的对照
+
+使用 RawTherapee 引擎时,各冲洗环节与 ACR 的机制对应关系:
+
+| 环节 | Adobe Camera Raw | Lumalapse(RawTherapee 引擎) | 状态 |
+|---|---|---|---|
+| 相机色彩校准 | 相机专属 DCP(色相/饱和度查找表、相机色调曲线、baseline exposure) | 自动匹配 RT 内置 DCP;**装有 Adobe DNG Converter / Camera Raw 时自动改用 Adobe Standard DCP(Adobe 官方校准数据)**;`LUMALAPSE_DCP` 可强制指定 | ✅ 同机制,可用 Adobe 官方数据 |
+| 高光重建 | 用未饱和通道重建已饱和通道 | RT 色彩传播重建(HLRecovery/Coloropp) | ✅ 等效 |
+| 曝光 | 线性增益 | PP3 Compensation(线性增益) | ✅ 同构 |
+| 高光/阴影(恢复方向) | PV2012 局部自适应、防光晕 | RT Shadows&Highlights:空间局部、边缘感知 guided filter 防光晕 | ✅ 等效机制 |
+| 白色/黑色色阶、高光/阴影(增强方向) | 参数化色调曲线 | PP3 自定义对角曲线 | ✅ 同构 |
+| 去雾 | Dehaze | RT Haze Removal | ✅ 等效 |
+| 默认捕捉锐化 | 默认开启(锐化 40) | RT PostDemosaicSharpening 默认开启 | ✅ 对齐 |
+| 逐像素一致 | — | — | ❌ 不追求:PV2012 内部算法与 Adobe 色彩引擎为专有实现,任何第三方都无法逐像素复刻 |
+
+> 内置(numpy)引擎的高光/阴影为全局亮度遮罩,实时性好但无局部自适应;追求 Adobe 级冲洗质量时请切换 RawTherapee 引擎。
+
 ## 工作原理
 
 - RAW 以线性 gamma、固定相机白平衡、关闭自动增亮解码,因此曝光调整是**精确的线性增益**

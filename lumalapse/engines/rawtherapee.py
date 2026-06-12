@@ -139,19 +139,55 @@ def _tone_curve(highlights: float, shadows: float, whites: float, blacks: float)
     return "1;" + ";".join(f"{x:.5f};{y:.5f}" for x, y in points) + ";"
 
 
-def _color_management_lines() -> list[str]:
+# Where Adobe DNG Converter / Camera Raw install their per-camera DCP
+# calibration profiles. When present, these are Adobe's own color data and
+# give the closest possible match to Lightroom/ACR rendering.
+ADOBE_PROFILE_DIRS = [
+    Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "Adobe/CameraRaw/CameraProfiles",
+    Path.home() / "AppData/Roaming/Adobe/CameraRaw/CameraProfiles",
+    Path("/Library/Application Support/Adobe/CameraRaw/CameraProfiles"),
+]
+
+_adobe_dcp_cache: dict = {}
+
+
+def find_adobe_dcp(camera_model: str | None) -> str | None:
+    """Locate an Adobe Standard DCP for a camera model, if Adobe software
+    (DNG Converter, Camera Raw) has installed its profile set."""
+    if not camera_model:
+        return None
+    key = camera_model.strip().lower()
+    if key in _adobe_dcp_cache:
+        return _adobe_dcp_cache[key]
+    result = None
+    for root in ADOBE_PROFILE_DIRS:
+        if not root.is_dir():
+            continue
+        for dcp in root.rglob("*.dcp"):
+            stem = dcp.stem.lower()
+            if key in stem and "adobe standard" in stem:
+                result = str(dcp)
+                break
+        if result:
+            break
+    _adobe_dcp_cache[key] = result
+    return result
+
+
+def _color_management_lines(dcp_path: str | None = None) -> list[str]:
     """DCP camera color profile selection.
 
-    (cameraICC) makes RawTherapee auto-match its bundled DCP for the camera
-    that shot the file - the same per-camera calibration approach (hue/sat
-    look table, baseline exposure, camera tone curve) Adobe Camera Raw uses,
-    and a large step toward the "Adobe look" over the plain color matrix.
-    Set LUMALAPSE_DCP to a .dcp path to force a specific profile (e.g. one
-    from Adobe DNG Converter's CameraProfiles directory).
+    Priority: LUMALAPSE_DCP env override > Adobe Standard DCP matched to the
+    camera (when Adobe DNG Converter/Camera Raw is installed) > (cameraICC),
+    which makes RawTherapee auto-match its own bundled DCP. All three apply
+    the same per-camera calibration mechanism Adobe Camera Raw uses: hue/sat
+    look table, camera tone curve and baseline exposure offset.
     """
-    dcp = os.environ.get("LUMALAPSE_DCP")
+    env = os.environ.get("LUMALAPSE_DCP")
+    if env and Path(env).exists():
+        dcp_path = env
     # Forward slashes: PP3 is a GKeyFile, backslashes there are escape chars.
-    profile = f"file:{Path(dcp).as_posix()}" if dcp and Path(dcp).exists() else "(cameraICC)"
+    profile = f"file:{Path(dcp_path).as_posix()}" if dcp_path else "(cameraICC)"
     return [
         "", "[Color Management]",
         f"InputProfile={profile}",
@@ -163,13 +199,15 @@ def _color_management_lines() -> list[str]:
     ]
 
 
-def build_pp3(params: dict, color_managed: bool = True) -> str:
+def build_pp3(params: dict, color_managed: bool = True, dcp_path: str | None = None) -> str:
     """Render Lumalapse params as a PP3 processing profile."""
     exposure = float(params.get("exposure", 0.0))
     contrast = float(params.get("contrast", 0.0))
     saturation = float(params.get("saturation", 1.0))
     dehaze = float(params.get("dehaze", 0.0))
     temperature = float(params.get("temperature", 0.0))
+    highlights = float(params.get("highlights", 0.0))
+    shadows = float(params.get("shadows", 0.0))
 
     lines = [
         "[Version]",
@@ -183,18 +221,39 @@ def build_pp3(params: dict, color_managed: bool = True) -> str:
         f"Saturation={round(np.clip(saturation - 1.0, -1, 2) * 100)}",
         "CurveMode=Standard",
     ]
+    # Recovery directions (darken highlights / lift shadows) go to RT's
+    # Shadows&Highlights: a spatial, edge-aware (guided filter) local tool -
+    # the same locally-adaptive, halo-suppressed approach as Lightroom's
+    # PV2012 Highlights/Shadows. Boost directions stay on the tone curve.
+    sh_highlights = round(-min(highlights, 0.0) * 100)
+    sh_shadows = round(max(shadows, 0.0) * 100)
     curve = _tone_curve(
-        float(params.get("highlights", 0.0)),
-        float(params.get("shadows", 0.0)),
+        max(highlights, 0.0),
+        min(shadows, 0.0),
         float(params.get("whites", 0.0)),
         float(params.get("blacks", 0.0)),
     )
     lines.append(f"Curve={curve}" if curve else "Curve=0;")
 
+    if sh_highlights or sh_shadows:
+        lines += [
+            "", "[Shadows & Highlights]",
+            "Enabled=true",
+            f"Highlights={sh_highlights}",
+            "HighlightTonalWidth=70",
+            f"Shadows={sh_shadows}",
+            "ShadowTonalWidth=40",
+            "Radius=40",
+            "Lab=false",
+        ]
+
     lines += ["", "[HLRecovery]", "Enabled=true", "Method=Coloropp"]
 
+    # Capture sharpening, matching Adobe's always-on default sharpen.
+    lines += ["", "[PostDemosaicSharpening]", "Enabled=true"]
+
     if color_managed:
-        lines += _color_management_lines()
+        lines += _color_management_lines(dcp_path)
 
     if dehaze > 0:
         lines += ["", "[Dehaze]", "Enabled=true",
@@ -220,6 +279,18 @@ class RawTherapeeEngine:
             self.cli = find_cli()
         return self.cli is not None
 
+    _model_cache: dict = {}
+
+    def _adobe_dcp_for(self, path: str) -> str | None:
+        """Adobe Standard DCP for the camera that shot `path`, if installed."""
+        model = self._model_cache.get(path)
+        if model is None:
+            from .. import loader
+
+            model = loader.read_metadata(path).get("model") or ""
+            self._model_cache[path] = model
+        return find_adobe_dcp(model)
+
     def render(self, path: str, params: dict, half_size: bool = False,
                max_dim: int | None = None, cache: bool = False) -> np.ndarray:
         if not self.cli:
@@ -229,7 +300,8 @@ class RawTherapeeEngine:
             )
         with tempfile.TemporaryDirectory(prefix="lumalapse_rt_") as tmp:
             pp3 = Path(tmp) / "params.pp3"
-            pp3.write_text(build_pp3(params), encoding="utf-8")
+            pp3.write_text(build_pp3(params, dcp_path=self._adobe_dcp_for(path)),
+                           encoding="utf-8")
             out = Path(tmp) / "out.tif"
             cmd = [self.cli, "-o", str(out), "-t", "-b8", "-Y",
                    "-p", str(pp3), "-c", str(path)]

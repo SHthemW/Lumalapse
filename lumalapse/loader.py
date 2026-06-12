@@ -106,13 +106,15 @@ def read_metadata(path: str | Path) -> dict:
     """Read shutter/aperture/ISO/timestamp from EXIF. Missing fields are None."""
     import exifread
 
-    meta = {"shutter": None, "aperture": None, "iso": None, "datetime": None}
+    meta = {"shutter": None, "aperture": None, "iso": None, "datetime": None, "model": None}
     try:
         with open(path, "rb") as f:
             tags = exifread.process_file(f, details=False)
     except Exception:
         return meta
 
+    if "Image Model" in tags:
+        meta["model"] = str(tags["Image Model"]).strip()
     if "EXIF ExposureTime" in tags:
         meta["shutter"] = _ratio(tags["EXIF ExposureTime"])
     if "EXIF FNumber" in tags:
