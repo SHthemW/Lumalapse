@@ -1,4 +1,4 @@
-# Smoothlapse
+# Lumalapse
 
 类似 LRTimelapse 的延时摄影后期工具:导入 RAW 序列 → 预览曝光曲线 → 关键帧调色 → 去闪 → 导出视频。
 支持 **CLI** 与 **GUI** 双界面。
@@ -22,8 +22,8 @@ pip install -e .
 ## GUI 用法
 
 ```bash
-smoothlapse gui                # 空白启动
-smoothlapse gui <文件夹或项目>  # 直接打开
+lumalapse gui                # 空白启动
+lumalapse gui <文件夹或项目>  # 直接打开
 ```
 
 1. `文件 → 打开图片文件夹`,自动分析曝光曲线(蓝线 = 原始亮度,橙线 = 调整后)
@@ -34,22 +34,22 @@ smoothlapse gui <文件夹或项目>  # 直接打开
 ## CLI 用法
 
 ```bash
-# 1. 分析序列,生成项目文件(<folder>/project.slproj),打印曝光曲线 sparkline
-smoothlapse analyze D:\timelapse\shot01
+# 1. 分析序列,生成项目文件(<folder>/project.llproj),打印曝光曲线 sparkline
+lumalapse analyze D:\timelapse\shot01
 
 # 2. 查看曲线 / 导出 CSV
-smoothlapse curve D:\timelapse\shot01 --csv curve.csv
+lumalapse curve D:\timelapse\shot01 --csv curve.csv
 
 # 3. 设置关键帧(帧号 0 和 299)
-smoothlapse keyframe set D:\timelapse\shot01 0   --exposure 0.5 --saturation 1.1 --dehaze 0.3
-smoothlapse keyframe set D:\timelapse\shot01 299 --exposure -0.5
-smoothlapse keyframe list D:\timelapse\shot01
+lumalapse keyframe set D:\timelapse\shot01 0   --exposure 0.5 --saturation 1.1 --dehaze 0.3
+lumalapse keyframe set D:\timelapse\shot01 299 --exposure -0.5
+lumalapse keyframe list D:\timelapse\shot01
 
 # 4. 启用去闪
-smoothlapse deflicker D:\timelapse\shot01 --enable --strength 12
+lumalapse deflicker D:\timelapse\shot01 --enable --strength 12
 
 # 5. 导出视频
-smoothlapse export D:\timelapse\shot01 -o out.mp4 --fps 25 --width 3840 --codec h264 --quality 16
+lumalapse export D:\timelapse\shot01 -o out.mp4 --fps 25 --width 3840 --codec h264 --quality 16
 ```
 
 `--half-size` 可让 RAW 以半分辨率解拜耳,速度提升约 4 倍,适合预览版导出。
@@ -64,7 +64,7 @@ smoothlapse export D:\timelapse\shot01 -o out.mp4 --fps 25 --width 3840 --codec 
 ## 项目结构
 
 ```
-smoothlapse/
+lumalapse/
 ├── loader.py       RAW/图像解码 + EXIF
 ├── analysis.py     曝光曲线分析
 ├── keyframes.py    关键帧与插值

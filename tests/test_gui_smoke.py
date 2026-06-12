@@ -10,14 +10,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PySide6.QtCore import QTimer  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from smoothlapse.gui.main_window import MainWindow  # noqa: E402
-from smoothlapse.project import Project  # noqa: E402
+from lumalapse.gui.main_window import MainWindow  # noqa: E402
+from lumalapse.project import Project  # noqa: E402
 
 demo = sys.argv[1]
 app = QApplication([])
 win = MainWindow()
 win.show()
-win._load_project(Project.load(Path(demo) / "project.slproj"))
+win._load_project(Project.load(Path(demo) / "project.llproj"))
 assert win.project is not None and win.project.n_frames > 0
 
 state = {"ok": False}

@@ -8,8 +8,8 @@ dist/
 # Virtual environment
 .venv/
 
-# Smoothlapse projects / outputs
-*.slproj
+# Lumalapse projects / outputs
+*.llproj
 *.mp4
 *.mov
 *.mkv

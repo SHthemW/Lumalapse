@@ -18,10 +18,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from smoothlapse import analysis, loader  # noqa: E402
-from smoothlapse.deflicker import deflicker_corrections  # noqa: E402
-from smoothlapse.export import export_video  # noqa: E402
-from smoothlapse.project import Project  # noqa: E402
+from lumalapse import analysis, loader  # noqa: E402
+from lumalapse.deflicker import deflicker_corrections  # noqa: E402
+from lumalapse.export import export_video  # noqa: E402
+from lumalapse.project import Project  # noqa: E402
 
 N_FRAMES = 40
 RNG = np.random.default_rng(42)
@@ -50,7 +50,7 @@ def hf_noise(curve: np.ndarray) -> float:
 
 
 def main():
-    tmp = Path(tempfile.mkdtemp(prefix="smoothlapse_test_"))
+    tmp = Path(tempfile.mkdtemp(prefix="lumalapse_test_"))
     try:
         seq_dir = tmp / "seq"
         seq_dir.mkdir()

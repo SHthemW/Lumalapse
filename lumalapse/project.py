@@ -12,7 +12,7 @@ from . import analysis, loader
 from .deflicker import deflicker_corrections
 from .keyframes import Keyframe, interpolate_params
 
-PROJECT_SUFFIX = ".slproj"
+PROJECT_SUFFIX = ".llproj"
 
 
 @dataclass

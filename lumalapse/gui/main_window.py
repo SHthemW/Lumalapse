@@ -1,4 +1,4 @@
-"""Smoothlapse GUI: preview, exposure curve, keyframe editing, deflicker, export."""
+"""Lumalapse GUI: preview, exposure curve, keyframe editing, deflicker, export."""
 
 from __future__ import annotations
 
@@ -165,7 +165,7 @@ class ExportDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Smoothlapse")
+        self.setWindowTitle("Lumalapse")
         self.resize(1450, 950)
         self.project: Project | None = None
         self.current_frame = 0
@@ -306,12 +306,12 @@ class MainWindow(QMainWindow):
         try:
             project = Project.from_folder(folder)
         except ValueError as e:
-            QMessageBox.warning(self, "Smoothlapse", str(e))
+            QMessageBox.warning(self, "Lumalapse", str(e))
             return
         self._analyze_and_load(project)
 
     def open_project(self):
-        path, _ = QFileDialog.getOpenFileName(self, "打开项目", "", f"Smoothlapse 项目 (*{PROJECT_SUFFIX})")
+        path, _ = QFileDialog.getOpenFileName(self, "打开项目", "", f"Lumalapse 项目 (*{PROJECT_SUFFIX})")
         if not path:
             return
         project = Project.load(path)
@@ -344,7 +344,7 @@ class MainWindow(QMainWindow):
         self.df_enable.setChecked(project.deflicker_enabled)
         self.df_strength.setValue(project.deflicker_strength)
         self._set_enabled(True)
-        self.setWindowTitle(f"Smoothlapse — {Path(project.folder).name} ({n} 帧)")
+        self.setWindowTitle(f"Lumalapse — {Path(project.folder).name} ({n} 帧)")
         self.current_frame = -1
         self.refresh_curves()
         self.set_frame(0)

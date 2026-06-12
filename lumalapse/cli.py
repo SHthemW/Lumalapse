@@ -1,4 +1,4 @@
-"""Smoothlapse command-line interface."""
+"""Lumalapse command-line interface."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def _load_project(path: str) -> Project:
         candidate = p / f"project{PROJECT_SUFFIX}"
         if candidate.exists():
             return Project.load(candidate)
-        raise click.ClickException(f"No project file in {p}; run `smoothlapse analyze {p}` first")
+        raise click.ClickException(f"No project file in {p}; run `lumalapse analyze {p}` first")
     return Project.load(p)
 
 
@@ -55,9 +55,9 @@ def _sparkline(values, width: int = 80) -> str:
 
 
 @click.group()
-@click.version_option(package_name="smoothlapse")
+@click.version_option(package_name="lumalapse")
 def main():
-    """Smoothlapse - timelapse RAW grading, deflicker and video export."""
+    """Lumalapse - timelapse RAW grading, deflicker and video export."""
 
 
 @main.command()
