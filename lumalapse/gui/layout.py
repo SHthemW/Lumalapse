@@ -40,6 +40,7 @@ def build_menu(win):
         ("打开项目...", win.open_project, "Ctrl+Shift+O"),
         ("保存项目", win.save_project, "Ctrl+S"),
         ("导出视频...", win.export_video, "Ctrl+E"),
+        ("导出 JPG 序列...", win.export_frames_seq, "Ctrl+Shift+E"),
     ]:
         action = QAction(text, win)
         action.setShortcut(key)

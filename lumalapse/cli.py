@@ -296,6 +296,57 @@ def export(project_path, output, fps, width, codec, quality, half_size, engine_n
 
 
 @main.command()
+@click.argument("project_path", type=click.Path(exists=True))
+@click.option("-o", "--output", "out_dir", type=click.Path(), required=True,
+              help="Directory for the developed frames")
+@click.option("--format", "fmt", type=click.Choice(["jpg", "png", "tif"]), default="jpg",
+              show_default=True)
+@click.option("--quality", type=click.IntRange(1, 100), default=95, show_default=True,
+              help="JPEG quality")
+@click.option("--width", type=int, default=None, help="Output width in px (default: source size)")
+@click.option("--half-size", is_flag=True, help="Demosaic RAWs at half resolution (much faster)")
+def render(project_path, out_dir, fmt, quality, width, half_size):
+    """Develop all frames to an image sequence (no video encoding).
+
+    The LRTimelapse-style intermediate workflow: develop RAWs to stills first,
+    inspect or retouch them, then `lumalapse assemble` the folder into a video.
+    """
+    from .export import export_frames
+
+    proj = _load_project(project_path)
+    proj.ensure_analysis()
+    proj.save()
+    bar, cb = _progress_bar("Developing")
+    try:
+        out = export_frames(proj, out_dir, fmt=fmt, quality=quality, width=width,
+                            half_size=half_size, progress=cb)
+    finally:
+        bar.__exit__(None, None, None)
+    click.echo(f"Frames written: {out}")
+
+
+@main.command()
+@click.argument("image_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("-o", "--output", type=click.Path(), required=True, help="Output video file")
+@click.option("--fps", type=float, default=25.0, show_default=True)
+@click.option("--width", type=int, default=None, help="Output width in px (default: source size)")
+@click.option("--codec", type=click.Choice(["h264", "h265", "prores"]), default="h264", show_default=True)
+@click.option("--quality", type=click.IntRange(0, 51), default=17, show_default=True,
+              help="CRF for h264/h265 (lower = better)")
+def assemble(image_dir, output, fps, width, codec, quality):
+    """Encode an already-developed image folder into a video (filename order)."""
+    from .export import assemble_video
+
+    bar, cb = _progress_bar("Encoding")
+    try:
+        out = assemble_video(image_dir, output, fps=fps, width=width, codec=codec,
+                             quality=quality, progress=cb)
+    finally:
+        bar.__exit__(None, None, None)
+    click.echo(f"Assembled: {out}")
+
+
+@main.command()
 @click.argument("project_path", type=click.Path(exists=True), required=False)
 def gui(project_path):
     """Launch the graphical interface (optionally opening a project)."""

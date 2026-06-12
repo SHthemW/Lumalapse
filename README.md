@@ -64,6 +64,10 @@ lumalapse deflicker D:\timelapse\shot01 --enable --strength 12
 
 # 5. 导出视频
 lumalapse export D:\timelapse\shot01 -o out.mp4 --fps 25 --width 3840 --codec h264 --quality 16
+
+# 或者两段式(LRTimelapse 风格):先冲洗成 JPG/TIFF 序列,检查/修图后再合成
+lumalapse render D:\timelapse\shot01 -o D:\timelapse\developed --format jpg --quality 95
+lumalapse assemble D:\timelapse\developed -o out.mp4 --fps 25
 ```
 
 `--half-size` 可让 RAW 以半分辨率解拜耳,速度提升约 4 倍,适合预览版导出。

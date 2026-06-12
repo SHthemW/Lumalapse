@@ -14,8 +14,8 @@ from ..project import PROJECT_SUFFIX, Project
 from ..settings import load_settings, update_settings
 from .export_dialog import ExportDialog
 from .layout import build_menu, build_ui, set_controls_enabled
-from .threads import (AnalyzeThread, ExportThread, InstallRTThread, PreviewThread,
-                      VisualDeflickerThread)
+from .threads import (AnalyzeThread, ExportThread, FramesExportThread, InstallRTThread,
+                      PreviewThread, VisualDeflickerThread)
 
 
 class MainWindow(QMainWindow):
@@ -325,6 +325,26 @@ class MainWindow(QMainWindow):
         thread.failed.connect(lambda tb: (prog.close(), QMessageBox.critical(self, "导出失败", tb)))
         prog.canceled.connect(lambda: setattr(thread, "cancelled", True))
         self._export_thread = thread
+        thread.start()
+
+    def export_frames_seq(self):
+        """Develop all frames to a JPG sequence (inspect/retouch, then assemble)."""
+        if self.project is None:
+            return
+        out_dir = QFileDialog.getExistingDirectory(
+            self, "选择 JPG 序列输出文件夹", self.project.folder)
+        if not out_dir:
+            return
+        self.project.save()
+        prog = QProgressDialog("正在冲洗 JPG 序列...", "取消", 0, self.project.n_frames, self)
+        prog.setWindowModality(Qt.WindowModal)
+        thread = FramesExportThread(self.project, out_dir)
+        thread.progressed.connect(lambda d, t: (prog.setMaximum(t), prog.setValue(d)))
+        thread.finished_ok.connect(lambda out: (prog.close(), QMessageBox.information(
+            self, "导出完成", f"JPG 序列已写入:\n{out}\n\n可用「lumalapse assemble」或导出视频菜单合成。")))
+        thread.failed.connect(lambda tb: (prog.close(), QMessageBox.critical(self, "导出失败", tb)))
+        prog.canceled.connect(lambda: setattr(thread, "cancelled", True))
+        self._frames_thread = thread
         thread.start()
 
     def open_last_folder(self) -> bool:

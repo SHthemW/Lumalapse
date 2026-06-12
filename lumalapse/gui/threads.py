@@ -122,3 +122,32 @@ class ExportThread(QThread):
             pass
         except Exception:
             self.failed.emit(traceback.format_exc())
+
+
+class FramesExportThread(QThread):
+    progressed = Signal(int, int)
+    finished_ok = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, project: Project, out_dir: str, fmt: str = "jpg", quality: int = 95):
+        super().__init__()
+        self.project = project
+        self.out_dir = out_dir
+        self.fmt = fmt
+        self.quality = quality
+        self.cancelled = False
+
+    def run(self):
+        from ..export import export_frames
+
+        try:
+            out = export_frames(
+                self.project, self.out_dir, fmt=self.fmt, quality=self.quality,
+                progress=lambda d, t: self.progressed.emit(d, t),
+                cancelled=lambda: self.cancelled,
+            )
+            self.finished_ok.emit(out)
+        except InterruptedError:
+            pass
+        except Exception:
+            self.failed.emit(traceback.format_exc())
