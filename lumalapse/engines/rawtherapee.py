@@ -139,6 +139,67 @@ def _tone_curve(highlights: float, shadows: float, whites: float, blacks: float)
     return "1;" + ";".join(f"{x:.5f};{y:.5f}" for x, y in points) + ";"
 
 
+def _quality_blocks() -> list[str]:
+    return [
+        "[Directional Pyramid Denoising]",
+        "Enabled=true",
+        "Enhance=false",
+        "Median=true",
+        "Luma=25",
+        "Ldetail=40",
+        "Chroma=20",
+        "Method=Lab",
+        "LMethod=SLI",
+        "CMethod=AUT",
+        "C2Method=AUTO",
+        "SMethod=shal",
+        "MedMethod=soft",
+        "RGBMethod=soft",
+        "MethodMed=Lpab",
+        "Redchro=0",
+        "Bluechro=0",
+        "Gamma=1.7",
+        "Passes=1",
+        "LCurve=0;",
+        "CCCurve=0;",
+        "",
+        "[LensProfile]",
+        "LcMode=lfauto",
+        "UseDistortion=true",
+        "UseVignette=true",
+        "UseCA=true",
+        "",
+        "[Color Management]",
+        "ToneCurve=false",
+        "ApplyLookTable=true",
+        "ApplyBaselineExposureOffset=true",
+        "ApplyHueSatMap=true",
+        "DCPIlluminant=0",
+        "InputProfile=(camera)",
+        "",
+        "[RAW]",
+        "CA=true",
+        "",
+        "[RAW Bayer]",
+        "Method=lmmse",
+        "",
+        "[RAW X-Trans]",
+        "Method=1-pass (medium)",
+        "",
+        "[PostDemosaicSharpening]",
+        "Enabled=true",
+        "",
+        "[Sharpening]",
+        "Enabled=true",
+        "Method=usm",
+        "Radius=0.8",
+        "Amount=120",
+        "Threshold=20",
+        "OnlyEdges=false",
+        "",
+    ]
+
+
 def build_pp3(params: dict) -> str:
     """Render Lumalapse params as a PP3 processing profile."""
     exposure = float(params.get("exposure", 0.0))
@@ -167,7 +228,7 @@ def build_pp3(params: dict) -> str:
     )
     lines.append(f"Curve={curve}" if curve else "Curve=0;")
 
-    lines += ["", "[HLRecovery]", "Enabled=true", "Method=Coloropp"]
+    lines += ["", "[HLRecovery]", "Enabled=true", "Method=Coloropp", "", *_quality_blocks()]
 
     if dehaze > 0:
         lines += ["", "[Dehaze]", "Enabled=true",
@@ -204,17 +265,25 @@ class RawTherapeeEngine:
             pp3 = Path(tmp) / "params.pp3"
             pp3.write_text(build_pp3(params), encoding="utf-8")
             out = Path(tmp) / "out.tif"
-            cmd = [self.cli, "-o", str(out), "-t", "-b8", "-Y",
+            cmd = [self.cli, "-o", str(out), "-t", "-b16", "-Y",
                    "-p", str(pp3), "-c", str(path)]
             res = subprocess.run(cmd, capture_output=True, timeout=600,
                                  creationflags=NO_WINDOW)
             if res.returncode != 0 or not out.exists():
                 err = (res.stderr or res.stdout or b"").decode(errors="replace")[-1500:]
                 raise RuntimeError(f"rawtherapee-cli failed on {path}:\n{err}")
-            img = cv2.imread(str(out), cv2.IMREAD_COLOR)
+            img = cv2.imread(str(out), cv2.IMREAD_UNCHANGED)
         if img is None:
             raise RuntimeError(f"Cannot read RawTherapee output for {path}")
+        if img.ndim == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        if img.shape[2] == 4:
+            img = img[:, :, :3]
         rgb = img[:, :, ::-1]
+        if rgb.dtype == np.uint16:
+            rgb = ((rgb.astype(np.float32) / 65535.0) * 255.0 + 0.5).astype(np.uint8)
+        elif rgb.dtype != np.uint8:
+            rgb = np.clip(rgb, 0, 255).astype(np.uint8)
         h, w = rgb.shape[:2]
         target = max_dim
         if half_size:

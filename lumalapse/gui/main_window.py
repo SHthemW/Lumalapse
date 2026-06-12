@@ -13,8 +13,9 @@ from ..keyframes import PARAM_DEFAULTS, interpolate_params
 from ..project import PROJECT_SUFFIX, Project
 from ..settings import load_settings, update_settings
 from .export_dialog import ExportDialog
+from .export_flow import start_export
 from .layout import build_menu, build_ui, set_controls_enabled
-from .threads import AnalyzeThread, ExportThread, InstallRTThread, PreviewThread
+from .threads import AnalyzeThread, InstallRTThread, PreviewThread
 
 
 class MainWindow(QMainWindow):
@@ -268,20 +269,10 @@ class MainWindow(QMainWindow):
     def export_video(self):
         if self.project is None:
             return
-        dlg = ExportDialog(self, self.project.folder)
-        if dlg.exec() != QDialog.Accepted:
-            return
-        opts = dlg.options()
-        self.project.save()
-        prog = QProgressDialog("正在渲染并编码...", "取消", 0, self.project.n_frames, self)
-        prog.setWindowModality(Qt.WindowModal)
-        thread = ExportThread(self.project, opts)
-        thread.progressed.connect(lambda d, t: (prog.setMaximum(t), prog.setValue(d)))
-        thread.finished_ok.connect(lambda out: (prog.close(), QMessageBox.information(self, "导出完成", f"已导出:\n{out}")))
-        thread.failed.connect(lambda tb: (prog.close(), QMessageBox.critical(self, "导出失败", tb)))
-        prog.canceled.connect(lambda: setattr(thread, "cancelled", True))
-        self._export_thread = thread
-        thread.start()
+        default_dir = load_settings().get("last_export_folder") or self.project.folder
+        dlg = ExportDialog(self, default_dir)
+        if dlg.exec() == QDialog.Accepted:
+            start_export(self, dlg.options())
 
     def open_last_folder(self) -> bool:
         last = load_settings().get("last_folder")

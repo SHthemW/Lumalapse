@@ -43,14 +43,20 @@ def even_size(w: int, h: int, target_w: int | None) -> tuple[int, int]:
     return w - w % 2, h - h % 2
 
 
-def render_sequence(project: Project, width: int | None = None, half_size: bool = False, progress=None):
+def render_sequence(
+    project: Project,
+    width: int | None = None,
+    half_size: bool = False,
+    progress=None,
+    engine_name: str | None = None,
+):
     """Yield (idx, uint8 RGB frame) for the whole sequence at a uniform size.
 
     Engines that spawn external processes (RawTherapee) render several frames
     concurrently; frames are still yielded in order.
     """
     all_params = project.frame_params()
-    engine = get_engine(project.engine)
+    engine = get_engine(engine_name or project.engine)
     jobs = max(1, getattr(engine, "parallel_jobs", 1))
     size = None
 

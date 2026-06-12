@@ -235,19 +235,22 @@ def deflicker(project_path, enable, strength):
 @click.option("--half-size", is_flag=True, help="Demosaic RAWs at half resolution (much faster)")
 @click.option("--engine", "engine_name", type=click.Choice(["builtin", "rawtherapee"]),
               default=None, help="Override the project's rendering engine for this export")
-def export(project_path, output, fps, width, codec, quality, half_size, engine_name):
+@click.option("--high-quality", is_flag=True, help="Export through RawTherapee without changing the project engine")
+@click.option("--keep-jpg", is_flag=True, help="Keep intermediate JPEG frames for RawTherapee exports")
+def export(project_path, output, fps, width, codec, quality, half_size, engine_name, high_quality, keep_jpg):
     """Render all frames and export the sequence as a video."""
     from .export import export_video
 
     proj = _load_project(project_path)
     proj.ensure_analysis()
     proj.save()
-    if engine_name:  # one-shot override, applied after save so it doesn't persist
-        proj.engine = engine_name
+    if high_quality:
+        engine_name = "rawtherapee"
     bar, cb = _progress_bar("Rendering")
     try:
         out = export_video(proj, output, fps=fps, width=width, codec=codec,
-                           quality=quality, half_size=half_size, progress=cb)
+                           quality=quality, half_size=half_size,
+                           engine_name=engine_name, keep_jpg=keep_jpg, progress=cb)
     finally:
         bar.__exit__(None, None, None)
     click.echo(f"Exported: {out}")

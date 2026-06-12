@@ -29,6 +29,12 @@ def test_pp3():
     assert "Temperature=6250" in pp3
     assert "Curve=1;" in pp3, "tone params must produce a custom curve"
     assert "Method=Coloropp" in pp3
+    assert "[Directional Pyramid Denoising]" in pp3
+    assert "[LensProfile]" in pp3 and "LcMode=lfauto" in pp3
+    assert "[Color Management]" in pp3 and "ApplyLookTable=true" in pp3
+    assert "[PostDemosaicSharpening]" in pp3
+    assert "[Sharpening]" in pp3
+    assert "[RAW]" in pp3 and "CA=true" in pp3
 
     neutral = build_pp3({})
     assert "Curve=0;" in neutral and "[Dehaze]" not in neutral
