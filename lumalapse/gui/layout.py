@@ -47,6 +47,9 @@ def build_menu(win):
         file_menu.addAction(action)
 
     settings_menu = win.menuBar().addMenu("设置")
+    resource_action = QAction("资源使用...", win)
+    resource_action.triggered.connect(win.edit_resource_settings)
+    settings_menu.addAction(resource_action)
     quality_menu = settings_menu.addMenu("预览画质")
     group = QActionGroup(win)
     group.setExclusive(True)

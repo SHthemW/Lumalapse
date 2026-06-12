@@ -15,6 +15,7 @@ from ..settings import load_settings, update_settings
 from .export_dialog import ExportDialog
 from .export_flow import start_export
 from .layout import build_menu, build_ui, set_controls_enabled
+from .settings_dialog import ResourceSettingsDialog
 from .threads import AnalyzeThread, InstallRTThread, PreviewThread
 
 
@@ -143,6 +144,7 @@ class MainWindow(QMainWindow):
     def _load_project(self, project: Project):
         if not project.analysis:
             return
+        errors = project.analysis.get("errors") or []
         self.project = project
         project.save()
         update_settings(last_folder=project.folder)
@@ -160,6 +162,8 @@ class MainWindow(QMainWindow):
         self.current_frame = -1
         self.refresh_curves()
         self.set_frame(0)
+        if errors:
+            self.statusBar().showMessage(f"分析跳过 {len(errors)} 张无法读取的图片，亮度曲线已用相邻帧补齐", 8000)
 
     def save_project(self):
         if self.project:
@@ -236,6 +240,9 @@ class MainWindow(QMainWindow):
     def _on_preview_quality_changed(self):
         if self.project is not None:
             self._preview_timer.start()
+
+    def edit_resource_settings(self):
+        ResourceSettingsDialog(self).exec()
 
     def refresh_curves(self):
         project = self.project
