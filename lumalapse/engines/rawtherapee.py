@@ -58,6 +58,67 @@ def find_cli() -> str | None:
     return None
 
 
+def _winget_install(progress=None) -> bool:
+    winget = shutil.which("winget")
+    if not winget:
+        return False
+    if progress:
+        progress("正在通过 winget 下载并安装 RawTherapee(约 100 MB)…")
+    res = subprocess.run(
+        [winget, "install", "RawTherapee.RawTherapee", "--silent",
+         "--accept-source-agreements", "--accept-package-agreements"],
+        capture_output=True, timeout=1800,
+    )
+    return res.returncode == 0
+
+
+def _github_install(progress=None) -> bool:
+    """Fallback: download the official installer from the latest GitHub release."""
+    import json as _json
+    import urllib.request
+
+    if progress:
+        progress("正在查询 RawTherapee 最新版本…")
+    try:
+        with urllib.request.urlopen(
+                "https://api.github.com/repos/Beep6581/RawTherapee/releases/latest",
+                timeout=30) as resp:
+            release = _json.load(resp)
+        asset = next((a for a in release.get("assets", [])
+                      if "win64" in a["name"].lower() and a["name"].lower().endswith(".exe")), None)
+        if not asset:
+            return False
+        if progress:
+            progress(f"正在下载 {asset['name']}…")
+        installer = Path(tempfile.gettempdir()) / asset["name"]
+        urllib.request.urlretrieve(asset["browser_download_url"], installer)
+        if progress:
+            progress("正在安装 RawTherapee(可能出现系统授权提示)…")
+        res = subprocess.run([str(installer), "/VERYSILENT", "/NORESTART", "/SP-"],
+                             timeout=900)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+def ensure_installed(progress=None) -> str | None:
+    """Locate rawtherapee-cli, installing RawTherapee if necessary (blocking).
+
+    progress, if given, receives human-readable status strings.
+    Returns the cli path, or None if installation failed.
+    """
+    cli = find_cli()
+    if cli:
+        return cli
+    if _winget_install(progress):
+        cli = find_cli()
+        if cli:
+            return cli
+    if _github_install(progress):
+        return find_cli()
+    return find_cli()
+
+
 def _tone_curve(highlights: float, shadows: float, whites: float, blacks: float) -> str | None:
     """Build an [Exposure] Curve spline (type 1 = custom) from the four tone params."""
     if not any((highlights, shadows, whites, blacks)):
@@ -126,6 +187,8 @@ class RawTherapeeEngine:
         self.cli = find_cli()
 
     def is_available(self) -> bool:
+        if self.cli is None:  # re-probe: RT may have been installed since startup
+            self.cli = find_cli()
         return self.cli is not None
 
     def render(self, path: str, params: dict, half_size: bool = False,

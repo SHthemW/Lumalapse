@@ -188,9 +188,21 @@ def engine(project_path, name):
         return
     eng = get_engine(name)
     if not eng.is_available():
-        raise click.ClickException(
-            "rawtherapee-cli not found. Install RawTherapee (https://rawtherapee.com) "
-            "or set LUMALAPSE_RAWTHERAPEE to the executable path.")
+        if sys.stdin.isatty() and click.confirm(
+                "RawTherapee not found. Download and install it automatically (~100 MB)?",
+                default=True):
+            from .engines.rawtherapee import ensure_installed
+
+            cli_path = ensure_installed(progress=click.echo)
+            if not cli_path:
+                raise click.ClickException(
+                    "Automatic install failed. Install RawTherapee manually "
+                    "(https://rawtherapee.com) or set LUMALAPSE_RAWTHERAPEE.")
+            click.echo(f"Installed: {cli_path}")
+        else:
+            raise click.ClickException(
+                "rawtherapee-cli not found. Install RawTherapee (https://rawtherapee.com) "
+                "or set LUMALAPSE_RAWTHERAPEE to the executable path.")
     proj.engine = name
     proj.save()
     click.echo(f"Engine set to {name}")

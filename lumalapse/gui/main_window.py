@@ -93,6 +93,20 @@ class PreviewThread(QThread):
                 traceback.print_exc()
 
 
+class InstallRTThread(QThread):
+    """Downloads and installs RawTherapee (winget, then GitHub release fallback)."""
+    message = Signal(str)
+    done = Signal(object)  # cli path str, or None on failure
+
+    def run(self):
+        from ..engines.rawtherapee import ensure_installed
+        try:
+            self.done.emit(ensure_installed(progress=self.message.emit))
+        except Exception:
+            traceback.print_exc()
+            self.done.emit(None)
+
+
 class ExportThread(QThread):
     progressed = Signal(int, int)
     finished_ok = Signal(str)
@@ -326,17 +340,53 @@ class MainWindow(QMainWindow):
             return
         from ..engines import get_engine
         if not get_engine(name).is_available():
-            QMessageBox.warning(self, "Lumalapse",
-                                "未找到 rawtherapee-cli。请安装 RawTherapee"
-                                "(https://rawtherapee.com),或设置环境变量 "
-                                "LUMALAPSE_RAWTHERAPEE 指向其路径。")
-            self.engine_combo.blockSignals(True)
-            self.engine_combo.setCurrentIndex(0)
-            self.engine_combo.blockSignals(False)
+            choice = QMessageBox.question(
+                self, "Lumalapse",
+                "未找到 RawTherapee。\n\n是否自动下载并安装?(约 100 MB,"
+                "安装完成后将自动启用该引擎)\n\n也可以手动安装 "
+                "https://rawtherapee.com 或设置环境变量 LUMALAPSE_RAWTHERAPEE。",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if choice == QMessageBox.Yes:
+                self._install_rawtherapee(name)
+            else:
+                self._revert_engine_combo()
             return
+        self._apply_engine(name)
+
+    def _apply_engine(self, name: str):
         self.project.engine = name
         self.project.save()
         self._preview_timer.start()
+
+    def _revert_engine_combo(self):
+        self.engine_combo.blockSignals(True)
+        self.engine_combo.setCurrentIndex(max(0, self.engine_combo.findData(self.project.engine)))
+        self.engine_combo.blockSignals(False)
+
+    def _install_rawtherapee(self, engine_name: str):
+        dlg = QProgressDialog("正在准备下载…", None, 0, 0, self)  # indeterminate, no cancel
+        dlg.setWindowTitle("安装 RawTherapee")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(0)
+        thread = InstallRTThread()
+        thread.message.connect(dlg.setLabelText)
+
+        def on_done(cli):
+            dlg.close()
+            if cli:
+                QMessageBox.information(self, "Lumalapse", f"RawTherapee 安装完成:\n{cli}")
+                self._apply_engine(engine_name)
+            else:
+                QMessageBox.critical(
+                    self, "Lumalapse",
+                    "自动安装失败。请手动安装 https://rawtherapee.com,"
+                    "或设置环境变量 LUMALAPSE_RAWTHERAPEE 指向 rawtherapee-cli。")
+                self._revert_engine_combo()
+
+        thread.done.connect(on_done)
+        self._install_thread = thread  # keep alive
+        thread.start()
+        dlg.exec()
 
     # ---------- project lifecycle ----------
 
