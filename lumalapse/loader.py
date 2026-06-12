@@ -40,6 +40,17 @@ def linear_to_srgb(x: np.ndarray) -> np.ndarray:
     return np.where(x <= 0.0031308, x * 12.92, 1.055 * np.power(x, 1.0 / 2.4) - 0.055).astype(np.float32)
 
 
+def _imread_unicode(path: str | Path, flags: int) -> np.ndarray | None:
+    """Read an image through OpenCV without losing non-ASCII Windows paths."""
+    try:
+        data = np.fromfile(str(path), dtype=np.uint8)
+    except OSError:
+        return None
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, flags)
+
+
 def load_linear(path: str | Path, half_size: bool = False, max_dim: int | None = None) -> np.ndarray:
     """Load an image as linear-light float32 RGB in [0, 1].
 
@@ -61,7 +72,7 @@ def load_linear(path: str | Path, half_size: bool = False, max_dim: int | None =
             )
         img = rgb16.astype(np.float32) / 65535.0
     else:
-        data = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        data = _imread_unicode(path, cv2.IMREAD_UNCHANGED)
         if data is None:
             raise IOError(f"Cannot read image: {path}")
         if data.ndim == 2:
