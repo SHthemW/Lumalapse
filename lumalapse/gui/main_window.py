@@ -62,6 +62,7 @@ class AnalyzeThread(QThread):
 class PreviewThread(QThread):
     """Renders preview frames one at a time; only the latest request is kept."""
     rendered = Signal(int, object)  # frame index, np.ndarray RGB
+    failed = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -90,8 +91,10 @@ class PreviewThread(QThread):
                                      max_dim=PREVIEW_MAX_DIM, cache=True)
                 if self._pending is None:  # stale results are dropped
                     self.rendered.emit(idx, frame)
-            except Exception:
+            except Exception as e:
                 traceback.print_exc()
+                if self._pending is None:
+                    self.failed.emit(str(e))
 
 
 class InstallRTThread(QThread):
@@ -198,6 +201,7 @@ class MainWindow(QMainWindow):
 
         self.preview_thread = PreviewThread()
         self.preview_thread.rendered.connect(self._on_preview_rendered)
+        self.preview_thread.failed.connect(self._on_preview_failed)
         self._preview_timer = QTimer(self, singleShot=True, interval=60)
         self._preview_timer.timeout.connect(self._request_preview)
 
@@ -226,6 +230,13 @@ class MainWindow(QMainWindow):
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setMinimumHeight(300)
         self.preview_label.setStyleSheet("background:#161616;color:#888;")
+
+        # "rendering…" badge overlaid on the preview while a frame is in flight
+        self.loading_label = QLabel("渲染中…", self.preview_label)
+        self.loading_label.setStyleSheet(
+            "background:rgba(0,0,0,160);color:#ddd;padding:4px 12px;border-radius:4px;")
+        self.loading_label.move(12, 12)
+        self.loading_label.hide()
 
         # Curve plot
         pg.setConfigOptions(antialias=True, background="#202020", foreground="#cccccc")
@@ -544,9 +555,16 @@ class MainWindow(QMainWindow):
     def _request_preview(self):
         if self.project is None:
             return
+        self.loading_label.show()
+        self.loading_label.raise_()
         self.preview_thread.request(self.project, self.current_frame, self.project.frame_params())
 
+    def _on_preview_failed(self, message: str):
+        self.loading_label.hide()
+        self.statusBar().showMessage(f"预览渲染失败:{message}", 8000)
+
     def _on_preview_rendered(self, idx: int, frame: np.ndarray):
+        self.loading_label.hide()
         h, w = frame.shape[:2]
         img = QImage(frame.data, w, h, 3 * w, QImage.Format_RGB888).copy()
         self._preview_pixmap = QPixmap.fromImage(img)

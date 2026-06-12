@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .procutil import NO_WINDOW
 from .project import Project
 from .render import render_sequence
 
@@ -55,7 +56,7 @@ def export_video(
     # once the pipe buffer fills with progress logs.
     with tempfile.TemporaryFile() as errlog:
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                                stderr=errlog)
+                                stderr=errlog, creationflags=NO_WINDOW)
         try:
             proc.stdin.write(first.tobytes())
             for _, frame in frames:

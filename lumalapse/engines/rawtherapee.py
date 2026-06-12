@@ -29,6 +29,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ..procutil import NO_WINDOW
+
 _DEFAULT_LOCATIONS = [
     r"C:\Program Files\RawTherapee\rawtherapee-cli.exe",
     "/usr/bin/rawtherapee-cli",
@@ -67,7 +69,7 @@ def _winget_install(progress=None) -> bool:
     res = subprocess.run(
         [winget, "install", "RawTherapee.RawTherapee", "--silent",
          "--accept-source-agreements", "--accept-package-agreements"],
-        capture_output=True, timeout=1800,
+        capture_output=True, timeout=1800, creationflags=NO_WINDOW,
     )
     return res.returncode == 0
 
@@ -95,7 +97,7 @@ def _github_install(progress=None) -> bool:
         if progress:
             progress("正在安装 RawTherapee(可能出现系统授权提示)…")
         res = subprocess.run([str(installer), "/VERYSILENT", "/NORESTART", "/SP-"],
-                             timeout=900)
+                             timeout=900, creationflags=NO_WINDOW)
         return res.returncode == 0
     except Exception:
         return False
@@ -204,7 +206,8 @@ class RawTherapeeEngine:
             out = Path(tmp) / "out.tif"
             cmd = [self.cli, "-o", str(out), "-t", "-b8", "-Y",
                    "-p", str(pp3), "-c", str(path)]
-            res = subprocess.run(cmd, capture_output=True, timeout=600)
+            res = subprocess.run(cmd, capture_output=True, timeout=600,
+                                 creationflags=NO_WINDOW)
             if res.returncode != 0 or not out.exists():
                 err = (res.stderr or res.stdout or b"").decode(errors="replace")[-1500:]
                 raise RuntimeError(f"rawtherapee-cli failed on {path}:\n{err}")

@@ -53,4 +53,5 @@ print(f"param change -> new preview:  {second_render * 1000:.0f} ms, brightness 
 assert i1 == i2 == 5
 assert b2 > b1 + 20, f"exposure +2EV must brighten preview ({b1:.1f} -> {b2:.1f})"
 assert win.project.get_keyframe(5) is not None, "param edit should create a keyframe"
+assert win.loading_label.isHidden(), "loading badge must hide after render"
 print("LIVE PREVIEW TEST PASSED")
