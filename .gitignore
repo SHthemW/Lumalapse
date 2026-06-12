@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Virtual environment
+.venv/
+
+# Smoothlapse projects / outputs
+*.slproj
+*.mp4
+*.mov
+*.mkv
+
+# IDE / OS
+.idea/
+.vscode/
+Thumbs.db
