@@ -1,34 +1,15 @@
-"""Frame rendering: load -> grade -> resize."""
+"""Frame rendering: dispatch to the project's engine, uniform sizing for export."""
 
 from __future__ import annotations
 
-from collections import OrderedDict
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
 
-from . import loader
-from .adjustments import apply_adjustments
+from .engines import get_engine
 from .project import Project
-
-# Decoded-image cache for interactive previews: re-grading a frame after a
-# parameter tweak then only costs the adjustment pass (~ms), not a RAW decode
-# (~seconds). apply_adjustments never mutates its input, so sharing is safe.
-_DECODE_CACHE: OrderedDict[tuple, np.ndarray] = OrderedDict()
-_DECODE_CACHE_MAX = 8  # ~10 MB per 1100px preview frame
-
-
-def _load_cached(path: str, half_size: bool, max_dim: int | None) -> np.ndarray:
-    key = (path, half_size, max_dim)
-    img = _DECODE_CACHE.get(key)
-    if img is None:
-        img = loader.load_linear(path, half_size=half_size, max_dim=max_dim)
-        _DECODE_CACHE[key] = img
-        if len(_DECODE_CACHE) > _DECODE_CACHE_MAX:
-            _DECODE_CACHE.popitem(last=False)
-    else:
-        _DECODE_CACHE.move_to_end(key)
-    return img
 
 
 def _params_at(all_params: dict[str, np.ndarray], idx: int) -> dict:
@@ -43,17 +24,15 @@ def render_frame(
     max_dim: int | None = None,
     cache: bool = False,
 ) -> np.ndarray:
-    """Render one graded frame as uint8 RGB.
+    """Render one graded frame as uint8 RGB with the project's engine.
 
-    cache=True keeps the decoded linear image in memory (for live previews).
+    cache=True lets the engine keep decoded data in memory (live previews).
     """
     if all_params is None:
         all_params = project.frame_params()
-    if cache:
-        img = _load_cached(project.files[idx], half_size, max_dim)
-    else:
-        img = loader.load_linear(project.files[idx], half_size=half_size, max_dim=max_dim)
-    return apply_adjustments(img, _params_at(all_params, idx))
+    engine = get_engine(project.engine)
+    return engine.render(project.files[idx], _params_at(all_params, idx),
+                         half_size=half_size, max_dim=max_dim, cache=cache)
 
 
 def even_size(w: int, h: int, target_w: int | None) -> tuple[int, int]:
@@ -65,15 +44,41 @@ def even_size(w: int, h: int, target_w: int | None) -> tuple[int, int]:
 
 
 def render_sequence(project: Project, width: int | None = None, half_size: bool = False, progress=None):
-    """Yield (idx, uint8 RGB frame) for the whole sequence at a uniform size."""
+    """Yield (idx, uint8 RGB frame) for the whole sequence at a uniform size.
+
+    Engines that spawn external processes (RawTherapee) render several frames
+    concurrently; frames are still yielded in order.
+    """
     all_params = project.frame_params()
+    engine = get_engine(project.engine)
+    jobs = max(1, getattr(engine, "parallel_jobs", 1))
     size = None
-    for i in range(project.n_frames):
-        frame = render_frame(project, i, all_params, half_size=half_size)
+
+    def finalize(idx: int, frame: np.ndarray):
+        nonlocal size
         if size is None:
             size = even_size(frame.shape[1], frame.shape[0], width)
         if (frame.shape[1], frame.shape[0]) != size:
             frame = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
         if progress:
-            progress(i + 1, project.n_frames)
-        yield i, frame
+            progress(idx + 1, project.n_frames)
+        return idx, frame
+
+    def job(i: int) -> np.ndarray:
+        return engine.render(project.files[i], _params_at(all_params, i), half_size=half_size)
+
+    if jobs == 1:
+        for i in range(project.n_frames):
+            yield finalize(i, job(i))
+        return
+
+    # Bounded look-ahead keeps at most ~2*jobs rendered frames in memory.
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        pending = deque()
+        next_submit = 0
+        while next_submit < project.n_frames or pending:
+            while next_submit < project.n_frames and len(pending) < jobs * 2:
+                pending.append((next_submit, pool.submit(job, next_submit)))
+                next_submit += 1
+            i, fut = pending.popleft()
+            yield finalize(i, fut.result())

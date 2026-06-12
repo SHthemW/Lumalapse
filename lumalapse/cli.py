@@ -173,6 +173,31 @@ def keyframe_list(project_path):
 
 @main.command()
 @click.argument("project_path", type=click.Path(exists=True))
+@click.argument("name", type=click.Choice(["builtin", "rawtherapee"]), required=False)
+def engine(project_path, name):
+    """Show or set the rendering engine.
+
+    builtin: fast numpy pipeline. rawtherapee: renders through rawtherapee-cli
+    (mature RAW engine: color science, highlight reconstruction, RT dehaze).
+    """
+    from .engines import get_engine
+
+    proj = _load_project(project_path)
+    if name is None:
+        click.echo(f"Engine: {proj.engine}")
+        return
+    eng = get_engine(name)
+    if not eng.is_available():
+        raise click.ClickException(
+            "rawtherapee-cli not found. Install RawTherapee (https://rawtherapee.com) "
+            "or set LUMALAPSE_RAWTHERAPEE to the executable path.")
+    proj.engine = name
+    proj.save()
+    click.echo(f"Engine set to {name}")
+
+
+@main.command()
+@click.argument("project_path", type=click.Path(exists=True))
 @click.option("--enable/--disable", default=True, help="Turn deflicker on/off")
 @click.option("--strength", type=click.FloatRange(1, 200), default=None,
               help="Smoothing sigma in frames (default 10)")
@@ -196,13 +221,17 @@ def deflicker(project_path, enable, strength):
 @click.option("--quality", type=click.IntRange(0, 51), default=17, show_default=True,
               help="CRF for h264/h265 (lower = better)")
 @click.option("--half-size", is_flag=True, help="Demosaic RAWs at half resolution (much faster)")
-def export(project_path, output, fps, width, codec, quality, half_size):
+@click.option("--engine", "engine_name", type=click.Choice(["builtin", "rawtherapee"]),
+              default=None, help="Override the project's rendering engine for this export")
+def export(project_path, output, fps, width, codec, quality, half_size, engine_name):
     """Render all frames and export the sequence as a video."""
     from .export import export_video
 
     proj = _load_project(project_path)
     proj.ensure_analysis()
     proj.save()
+    if engine_name:  # one-shot override, applied after save so it doesn't persist
+        proj.engine = engine_name
     bar, cb = _progress_bar("Rendering")
     try:
         out = export_video(proj, output, fps=fps, width=width, codec=codec,

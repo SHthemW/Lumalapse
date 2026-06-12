@@ -10,6 +10,11 @@
 - **关键帧调色**:在任意帧设置 曝光 / 高光 / 阴影 / 白色色阶 / 黑色色阶 / 对比度 / 饱和度 / 去雾(暗通道先验)/ 色温,帧间平滑插值
 - **基于曝光的去闪**:对亮度曲线做高斯平滑,差值作为逐帧 EV 补偿;有意的曝光渐变(ramp)会被保留
 - **视频导出**:内置 ffmpeg(imageio-ffmpeg),支持 H.264 / H.265 / ProRes
+- **双渲染引擎**:`builtin`(numpy,快速、实时预览)与 `rawtherapee`(通过
+  rawtherapee-cli 调用 [RawTherapee](https://rawtherapee.com) 的成熟 RAW 管线:
+  专业色彩科学、高光重建、RT 去雾;参数自动映射为 PP3 处理配置文件)。
+  GUI 右侧面板或 `lumalapse engine <项目> rawtherapee` 切换,
+  `lumalapse export --engine rawtherapee` 可单次覆盖
 
 ## 安装
 

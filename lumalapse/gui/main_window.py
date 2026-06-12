@@ -282,6 +282,17 @@ class MainWindow(QMainWindow):
         df_form.addRow(self.df_enable)
         df_form.addRow("平滑强度(帧)", self.df_strength)
 
+        eng_box = QGroupBox("渲染引擎")
+        eng_form = QFormLayout(eng_box)
+        self.engine_combo = QComboBox()
+        self.engine_combo.addItem("内置 (快速)", "builtin")
+        self.engine_combo.addItem("RawTherapee (高质量)", "rawtherapee")
+        self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
+        eng_form.addRow(self.engine_combo)
+        eng_note = QLabel("RawTherapee 引擎预览较慢,\n但色彩科学与高光重建更佳")
+        eng_note.setStyleSheet("color:#888;")
+        eng_form.addRow(eng_note)
+
         self.btn_export = QPushButton("导出视频…")
         self.btn_export.clicked.connect(self.export_video)
 
@@ -289,6 +300,7 @@ class MainWindow(QMainWindow):
         rl = QVBoxLayout(right)
         rl.addWidget(kf_box)
         rl.addWidget(df_box)
+        rl.addWidget(eng_box)
         rl.addStretch(1)
         rl.addWidget(self.btn_export)
         right.setFixedWidth(300)
@@ -302,9 +314,29 @@ class MainWindow(QMainWindow):
 
     def _set_enabled(self, on: bool):
         for w in (self.frame_slider, self.frame_spin, self.btn_add_kf, self.btn_del_kf,
-                  self.df_enable, self.df_strength, self.btn_export,
+                  self.df_enable, self.df_strength, self.btn_export, self.engine_combo,
                   *self.param_spins.values()):
             w.setEnabled(on)
+
+    def _on_engine_changed(self):
+        if self.project is None:
+            return
+        name = self.engine_combo.currentData()
+        if name == self.project.engine:
+            return
+        from ..engines import get_engine
+        if not get_engine(name).is_available():
+            QMessageBox.warning(self, "Lumalapse",
+                                "未找到 rawtherapee-cli。请安装 RawTherapee"
+                                "(https://rawtherapee.com),或设置环境变量 "
+                                "LUMALAPSE_RAWTHERAPEE 指向其路径。")
+            self.engine_combo.blockSignals(True)
+            self.engine_combo.setCurrentIndex(0)
+            self.engine_combo.blockSignals(False)
+            return
+        self.project.engine = name
+        self.project.save()
+        self._preview_timer.start()
 
     # ---------- project lifecycle ----------
 
@@ -352,6 +384,9 @@ class MainWindow(QMainWindow):
         self.playhead.setBounds([0, n - 1])
         self.df_enable.setChecked(project.deflicker_enabled)
         self.df_strength.setValue(project.deflicker_strength)
+        self.engine_combo.blockSignals(True)
+        self.engine_combo.setCurrentIndex(max(0, self.engine_combo.findData(project.engine)))
+        self.engine_combo.blockSignals(False)
         self._set_enabled(True)
         self.setWindowTitle(f"Lumalapse — {Path(project.folder).name} ({n} 帧)")
         self.current_frame = -1
