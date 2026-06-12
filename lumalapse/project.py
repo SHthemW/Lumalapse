@@ -13,6 +13,12 @@ from .deflicker import deflicker_corrections
 from .keyframes import Keyframe, interpolate_params
 
 PROJECT_SUFFIX = ".llproj"
+DATA_DIR_NAME = ".lumalapse"
+
+
+def default_project_path(folder: str | Path) -> Path:
+    """Where a sequence folder's project data lives: <folder>/.lumalapse/project.llproj"""
+    return Path(folder) / DATA_DIR_NAME / f"project{PROJECT_SUFFIX}"
 
 
 @dataclass
@@ -37,6 +43,32 @@ class Project:
         return Project(folder=folder, files=files)
 
     @staticmethod
+    def open_folder(folder: str | Path) -> "Project":
+        """Open a sequence folder, reusing data stored in <folder>/.lumalapse.
+
+        If the folder was opened before and its image files are unchanged
+        (compared by filename, so a moved/renamed folder still matches), the
+        cached analysis, keyframes and settings are reused. If the sequence
+        changed, keyframes and settings are kept but the stale analysis is
+        dropped so it gets recomputed.
+        """
+        fresh = Project.from_folder(folder)
+        cached_path = default_project_path(fresh.folder)
+        if not cached_path.exists():
+            return fresh
+        try:
+            proj = Project.load(cached_path)
+        except (json.JSONDecodeError, KeyError, OSError):
+            return fresh
+
+        same_files = [Path(f).name for f in proj.files] == [Path(f).name for f in fresh.files]
+        proj.folder, proj.files = fresh.folder, fresh.files
+        if not same_files:
+            proj.analysis = None
+        proj.path = str(cached_path)
+        return proj
+
+    @staticmethod
     def load(path: str | Path) -> "Project":
         path = Path(path)
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -53,7 +85,8 @@ class Project:
         return proj
 
     def save(self, path: str | Path | None = None) -> str:
-        path = Path(path or self.path or Path(self.folder) / f"project{PROJECT_SUFFIX}")
+        path = Path(path or self.path or default_project_path(self.folder))
+        path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "folder": self.folder,
             "files": self.files,

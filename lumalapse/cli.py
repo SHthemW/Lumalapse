@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 
 from .keyframes import PARAM_DEFAULTS, PARAM_RANGES
-from .project import PROJECT_SUFFIX, Project
+from .project import PROJECT_SUFFIX, Project, default_project_path
 
 def _spark_chars() -> str:
     """Unicode blocks only on UTF terminals; legacy code pages (GBK etc.) often
@@ -20,10 +20,10 @@ def _spark_chars() -> str:
 def _load_project(path: str) -> Project:
     p = Path(path)
     if p.is_dir():
-        candidate = p / f"project{PROJECT_SUFFIX}"
-        if candidate.exists():
-            return Project.load(candidate)
-        raise click.ClickException(f"No project file in {p}; run `lumalapse analyze {p}` first")
+        for candidate in (default_project_path(p), p / f"project{PROJECT_SUFFIX}"):
+            if candidate.exists():
+                return Project.load(candidate)
+        raise click.ClickException(f"No project data in {p}; run `lumalapse analyze {p}` first")
     return Project.load(p)
 
 
@@ -63,16 +63,27 @@ def main():
 @main.command()
 @click.argument("folder", type=click.Path(exists=True, file_okay=False))
 @click.option("-p", "--project", "project_path", type=click.Path(), default=None,
-              help=f"Project file to write (default: <folder>/project{PROJECT_SUFFIX})")
-def analyze(folder, project_path):
-    """Scan FOLDER, compute the exposure curve and create a project file."""
-    proj = Project.from_folder(folder)
+              help="Project file to write (default: <folder>/.lumalapse/project"
+                   f"{PROJECT_SUFFIX})")
+@click.option("--force", is_flag=True, help="Re-analyze even if cached data exists")
+def analyze(folder, project_path, force):
+    """Scan FOLDER, compute the exposure curve and create a project file.
+
+    Results are cached in <folder>/.lumalapse; a second run (or opening the
+    folder in the GUI) reuses them unless the sequence changed or --force is given.
+    """
+    proj = Project.open_folder(folder)
     click.echo(f"Found {proj.n_frames} frames")
-    bar, cb = _progress_bar("Analyzing")
-    try:
-        proj.ensure_analysis(progress=cb)
-    finally:
-        bar.__exit__(None, None, None)
+    if force:
+        proj.analysis = None
+    if proj.analysis:
+        click.echo("Using cached analysis from .lumalapse (use --force to re-analyze)")
+    else:
+        bar, cb = _progress_bar("Analyzing")
+        try:
+            proj.ensure_analysis(progress=cb)
+        finally:
+            bar.__exit__(None, None, None)
     saved = proj.save(project_path)
     click.echo(f"Project saved: {saved}")
     click.echo("\nLuminance curve (log2):")

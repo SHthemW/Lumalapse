@@ -23,7 +23,7 @@ demo = sys.argv[1]
 app = QApplication([])
 win = MainWindow()
 win.show()
-win._load_project(Project.load(Path(demo) / "project.llproj"))
+win._load_project(Project.open_folder(demo))
 
 previews = []  # (time, idx, mean brightness)
 

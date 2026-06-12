@@ -305,7 +305,7 @@ class MainWindow(QMainWindow):
         if not folder:
             return
         try:
-            project = Project.from_folder(folder)
+            project = Project.open_folder(folder)
         except ValueError as e:
             QMessageBox.warning(self, "Lumalapse", str(e))
             return
@@ -498,7 +498,7 @@ def run_gui(project_path: str | None = None) -> int:
     if project_path:
         p = Path(project_path)
         if p.is_dir():
-            win._analyze_and_load(Project.from_folder(p))
+            win._analyze_and_load(Project.open_folder(p))
         else:
             win._analyze_and_load(Project.load(p))
     return app.exec()

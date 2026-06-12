@@ -17,7 +17,7 @@ demo = sys.argv[1]
 app = QApplication([])
 win = MainWindow()
 win.show()
-win._load_project(Project.load(Path(demo) / "project.llproj"))
+win._load_project(Project.open_folder(demo))
 assert win.project is not None and win.project.n_frames > 0
 
 state = {"ok": False}
