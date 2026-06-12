@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from ..keyframes import PARAM_DEFAULTS, PARAM_RANGES, interpolate_params
 from ..project import PROJECT_SUFFIX, Project
 from ..render import render_frame
+from ..settings import load_settings, update_settings
 
 PREVIEW_MAX_DIM = 1100
 
@@ -391,7 +392,10 @@ class MainWindow(QMainWindow):
     # ---------- project lifecycle ----------
 
     def open_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "选择延时序列文件夹")
+        start_dir = load_settings().get("last_folder", "")
+        if start_dir and not Path(start_dir).is_dir():
+            start_dir = ""
+        folder = QFileDialog.getExistingDirectory(self, "选择延时序列文件夹", start_dir)
         if not folder:
             return
         try:
@@ -428,6 +432,7 @@ class MainWindow(QMainWindow):
             return
         self.project = project
         project.save()
+        update_settings(last_folder=project.folder)
         n = project.n_frames
         self.frame_slider.setRange(0, n - 1)
         self.frame_spin.setRange(0, n - 1)
@@ -577,6 +582,17 @@ class MainWindow(QMainWindow):
         self._export_thread = thread  # keep alive
         thread.start()
 
+    def open_last_folder(self) -> bool:
+        """Reopen the folder from the previous session, if it still has images."""
+        last = load_settings().get("last_folder")
+        if not last or not Path(last).is_dir():
+            return False
+        try:
+            self._analyze_and_load(Project.open_folder(last))
+        except ValueError:
+            return False
+        return True
+
     def closeEvent(self, event):
         self.preview_thread.stop()
         if self.project:
@@ -594,4 +610,6 @@ def run_gui(project_path: str | None = None) -> int:
             win._analyze_and_load(Project.open_folder(p))
         else:
             win._analyze_and_load(Project.load(p))
+    else:
+        win.open_last_folder()
     return app.exec()
