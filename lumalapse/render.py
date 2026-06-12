@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
+
 import cv2
 import numpy as np
 
 from . import loader
 from .adjustments import apply_adjustments
 from .project import Project
+
+# Decoded-image cache for interactive previews: re-grading a frame after a
+# parameter tweak then only costs the adjustment pass (~ms), not a RAW decode
+# (~seconds). apply_adjustments never mutates its input, so sharing is safe.
+_DECODE_CACHE: OrderedDict[tuple, np.ndarray] = OrderedDict()
+_DECODE_CACHE_MAX = 8  # ~10 MB per 1100px preview frame
+
+
+def _load_cached(path: str, half_size: bool, max_dim: int | None) -> np.ndarray:
+    key = (path, half_size, max_dim)
+    img = _DECODE_CACHE.get(key)
+    if img is None:
+        img = loader.load_linear(path, half_size=half_size, max_dim=max_dim)
+        _DECODE_CACHE[key] = img
+        if len(_DECODE_CACHE) > _DECODE_CACHE_MAX:
+            _DECODE_CACHE.popitem(last=False)
+    else:
+        _DECODE_CACHE.move_to_end(key)
+    return img
 
 
 def _params_at(all_params: dict[str, np.ndarray], idx: int) -> dict:
@@ -20,11 +41,18 @@ def render_frame(
     all_params: dict[str, np.ndarray] | None = None,
     half_size: bool = False,
     max_dim: int | None = None,
+    cache: bool = False,
 ) -> np.ndarray:
-    """Render one graded frame as uint8 RGB."""
+    """Render one graded frame as uint8 RGB.
+
+    cache=True keeps the decoded linear image in memory (for live previews).
+    """
     if all_params is None:
         all_params = project.frame_params()
-    img = loader.load_linear(project.files[idx], half_size=half_size, max_dim=max_dim)
+    if cache:
+        img = _load_cached(project.files[idx], half_size, max_dim)
+    else:
+        img = loader.load_linear(project.files[idx], half_size=half_size, max_dim=max_dim)
     return apply_adjustments(img, _params_at(all_params, idx))
 
 

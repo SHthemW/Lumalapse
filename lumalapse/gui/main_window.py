@@ -77,7 +77,8 @@ class PreviewThread(QThread):
             self._pending = None
             project, idx, params = job
             try:
-                frame = render_frame(project, idx, params, half_size=True, max_dim=PREVIEW_MAX_DIM)
+                frame = render_frame(project, idx, params, half_size=True,
+                                     max_dim=PREVIEW_MAX_DIM, cache=True)
                 if self._pending is None:  # stale results are dropped
                     self.rendered.emit(idx, frame)
             except Exception:
@@ -174,7 +175,7 @@ class MainWindow(QMainWindow):
 
         self.preview_thread = PreviewThread()
         self.preview_thread.rendered.connect(self._on_preview_rendered)
-        self._preview_timer = QTimer(self, singleShot=True, interval=150)
+        self._preview_timer = QTimer(self, singleShot=True, interval=60)
         self._preview_timer.timeout.connect(self._request_preview)
 
         self._build_menu()
