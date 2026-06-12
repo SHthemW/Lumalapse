@@ -14,7 +14,8 @@ from ..project import PROJECT_SUFFIX, Project
 from ..settings import load_settings, update_settings
 from .export_dialog import ExportDialog
 from .layout import build_menu, build_ui, set_controls_enabled
-from .threads import AnalyzeThread, ExportThread, InstallRTThread, PreviewThread
+from .threads import (AnalyzeThread, ExportThread, InstallRTThread, PreviewThread,
+                      VisualDeflickerThread)
 
 
 class MainWindow(QMainWindow):
@@ -162,6 +163,7 @@ class MainWindow(QMainWindow):
         self.hg_enable.setEnabled(has_ev)  # after _set_enabled: stays off without EXIF
         if not has_ev:
             self.hg_enable.setToolTip("此序列没有 EXIF 曝光数据,圣杯补偿不可用")
+        self._update_visual_df_status()
         self.setWindowTitle(f"Lumalapse - {Path(project.folder).name} ({n_frames} 帧)")
         self.current_frame = -1
         self.refresh_curves()
@@ -236,9 +238,43 @@ class MainWindow(QMainWindow):
             return
         self.project.deflicker_enabled = self.df_enable.isChecked()
         self.project.holy_grail_enabled = self.hg_enable.isChecked()
-        self.project.deflicker_strength = self.df_strength.value()
+        if self.project.deflicker_strength != self.df_strength.value():
+            # strength changes invalidate baked visual corrections
+            self.project.deflicker_strength = self.df_strength.value()
+            self.project.visual_deflicker = None
+        self._update_visual_df_status()
         self.refresh_curves()
         self._preview_timer.start()
+
+    def _update_visual_df_status(self):
+        if self.project and self.project.visual_deflicker:
+            self.visual_df_status.setText("视觉去闪:已计算 ✓ (改参数后请重新计算)")
+        else:
+            self.visual_df_status.setText("视觉去闪:未计算 (当前为解析式去闪)")
+
+    def run_visual_deflicker(self):
+        if self.project is None:
+            return
+        dlg = QProgressDialog("正在渲染并测量全序列亮度…", "取消", 0,
+                              self.project.n_frames * 2, self)
+        dlg.setWindowModality(Qt.WindowModal)
+        thread = VisualDeflickerThread(self.project, passes=2)
+        thread.progressed.connect(lambda d, t: (dlg.setMaximum(t), dlg.setValue(d)))
+        thread.failed.connect(lambda tb: (dlg.close(), QMessageBox.critical(self, "视觉去闪失败", tb)))
+
+        def on_ok():
+            dlg.close()
+            self.project.save()
+            self.df_enable.setChecked(True)
+            self._update_visual_df_status()
+            self.refresh_curves()
+            self._preview_timer.start()
+
+        thread.finished_ok.connect(on_ok)
+        dlg.canceled.connect(thread.terminate)
+        self._visual_df_thread = thread
+        thread.start()
+        dlg.exec()
 
     def _on_preview_quality_changed(self):
         if self.project is not None:

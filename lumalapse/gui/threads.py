@@ -61,6 +61,27 @@ class PreviewThread(QThread):
                     self.failed.emit(str(exc))
 
 
+class VisualDeflickerThread(QThread):
+    progressed = Signal(int, int)
+    finished_ok = Signal()
+    failed = Signal(str)
+
+    def __init__(self, project: Project, passes: int = 2):
+        super().__init__()
+        self.project = project
+        self.passes = passes
+
+    def run(self):
+        from ..render import compute_visual_deflicker
+
+        try:
+            compute_visual_deflicker(self.project, passes=self.passes,
+                                     progress=lambda d, t: self.progressed.emit(d, t))
+            self.finished_ok.emit()
+        except Exception:
+            self.failed.emit(traceback.format_exc())
+
+
 class InstallRTThread(QThread):
     message = Signal(str)
     done = Signal(object)

@@ -164,6 +164,15 @@ def _build_deflicker_box(win) -> QGroupBox:
     form.addRow(win.df_enable)
     form.addRow(win.hg_enable)
     form.addRow("平滑强度(帧)", win.df_strength)
+    win.btn_visual_df = QPushButton("计算视觉去闪 (精确)")
+    win.btn_visual_df.setToolTip(
+        "渲染全序列小尺寸预览并实测亮度,迭代修正——对任何引擎都精确。\n"
+        "修改关键帧后需要重新计算。")
+    win.btn_visual_df.clicked.connect(win.run_visual_deflicker)
+    win.visual_df_status = QLabel("")
+    win.visual_df_status.setStyleSheet("color:#888;")
+    form.addRow(win.btn_visual_df)
+    form.addRow(win.visual_df_status)
     return box
 
 
@@ -190,6 +199,7 @@ def set_controls_enabled(win, enabled: bool):
         win.df_enable,
         win.hg_enable,
         win.df_strength,
+        win.btn_visual_df,
         win.btn_export,
         win.engine_combo,
         *win.param_spins.values(),

@@ -31,6 +31,7 @@ class Project:
     deflicker_enabled: bool = False
     deflicker_strength: float = 10.0
     holy_grail_enabled: bool = False               # EXIF-based exposure-step neutralization
+    visual_deflicker: list | None = None           # baked per-frame EV from compute_visual_deflicker
     analysis: dict | None = None                   # {"luminance": [...], "ev": [...]}
     path: str | None = None                        # where this project file lives
 
@@ -83,6 +84,7 @@ class Project:
             deflicker_enabled=data.get("deflicker_enabled", False),
             deflicker_strength=data.get("deflicker_strength", 10.0),
             holy_grail_enabled=data.get("holy_grail_enabled", False),
+            visual_deflicker=data.get("visual_deflicker"),
             analysis=data.get("analysis"),
             path=str(path),
         )
@@ -100,6 +102,7 @@ class Project:
             "deflicker_enabled": self.deflicker_enabled,
             "deflicker_strength": self.deflicker_strength,
             "holy_grail_enabled": self.holy_grail_enabled,
+            "visual_deflicker": self.visual_deflicker,
             "analysis": self.analysis,
         }
         path.write_text(json.dumps(data, indent=1), encoding="utf-8")
@@ -153,7 +156,13 @@ class Project:
             params["exposure"] = params["exposure"] + holy_grail_corrections(
                 ev, strength=self.deflicker_strength)
         if self.deflicker_enabled and self.n_frames > 1:
-            lum = self.ensure_analysis()["luminance"]
-            corr = deflicker_corrections(lum, params["exposure"], strength=self.deflicker_strength)
-            params["exposure"] = params["exposure"] + corr
+            if self.visual_deflicker is not None and len(self.visual_deflicker) == self.n_frames:
+                # Baked corrections from compute_visual_deflicker take precedence:
+                # they were measured on the developed output, engine included.
+                params["exposure"] = params["exposure"] + np.asarray(self.visual_deflicker)
+            else:
+                lum = self.ensure_analysis()["luminance"]
+                corr = deflicker_corrections(lum, params["exposure"],
+                                             strength=self.deflicker_strength)
+                params["exposure"] = params["exposure"] + corr
         return params

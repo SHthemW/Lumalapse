@@ -232,14 +232,37 @@ def engine(project_path, name):
 @click.option("--enable/--disable", default=True, help="Turn deflicker on/off")
 @click.option("--strength", type=click.FloatRange(1, 200), default=None,
               help="Smoothing sigma in frames (default 10)")
-def deflicker(project_path, enable, strength):
+@click.option("--visual", is_flag=True,
+              help="Compute iterative visual deflicker now: renders small previews "
+                   "of the developed frames and measures them (engine-agnostic, "
+                   "like LRTimelapse). Re-run after changing keyframes.")
+@click.option("--passes", type=click.IntRange(1, 5), default=2, show_default=True,
+              help="Iterations for --visual")
+@click.option("--clear-visual", is_flag=True,
+              help="Drop baked visual corrections, fall back to analytic deflicker")
+def deflicker(project_path, enable, strength, visual, passes, clear_visual):
     """Configure luminance-based deflicker for a project."""
     proj = _load_project(project_path)
     proj.deflicker_enabled = enable
     if strength is not None:
         proj.deflicker_strength = strength
+    if clear_visual:
+        proj.visual_deflicker = None
+        click.echo("Visual corrections cleared")
+    if visual:
+        from .render import compute_visual_deflicker
+
+        proj.ensure_analysis()
+        bar, cb = _progress_bar(f"Visual deflicker ({passes} passes)")
+        try:
+            compute_visual_deflicker(proj, passes=passes, progress=cb)
+        finally:
+            bar.__exit__(None, None, None)
+        click.echo("Visual corrections baked into project")
     proj.save()
-    state = f"enabled (strength={proj.deflicker_strength:g})" if enable else "disabled"
+    mode = "visual (baked)" if proj.visual_deflicker else "analytic"
+    state = f"enabled, {mode}, strength={proj.deflicker_strength:g}" \
+        if proj.deflicker_enabled else "disabled"
     click.echo(f"Deflicker {state}")
 
 
