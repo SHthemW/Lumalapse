@@ -257,7 +257,7 @@ def export(project_path, output, fps, width, codec, quality, half_size, engine_n
 @click.argument("project_path", type=click.Path(exists=True), required=False)
 def gui(project_path):
     """Launch the graphical interface (optionally opening a project)."""
-    from .gui.main_window import run_gui
+    from .gui.app import run_gui
 
     sys.exit(run_gui(project_path))
 
