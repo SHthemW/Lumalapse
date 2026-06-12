@@ -139,7 +139,31 @@ def _tone_curve(highlights: float, shadows: float, whites: float, blacks: float)
     return "1;" + ";".join(f"{x:.5f};{y:.5f}" for x, y in points) + ";"
 
 
-def build_pp3(params: dict) -> str:
+def _color_management_lines() -> list[str]:
+    """DCP camera color profile selection.
+
+    (cameraICC) makes RawTherapee auto-match its bundled DCP for the camera
+    that shot the file - the same per-camera calibration approach (hue/sat
+    look table, baseline exposure, camera tone curve) Adobe Camera Raw uses,
+    and a large step toward the "Adobe look" over the plain color matrix.
+    Set LUMALAPSE_DCP to a .dcp path to force a specific profile (e.g. one
+    from Adobe DNG Converter's CameraProfiles directory).
+    """
+    dcp = os.environ.get("LUMALAPSE_DCP")
+    # Forward slashes: PP3 is a GKeyFile, backslashes there are escape chars.
+    profile = f"file:{Path(dcp).as_posix()}" if dcp and Path(dcp).exists() else "(cameraICC)"
+    return [
+        "", "[Color Management]",
+        f"InputProfile={profile}",
+        "ToneCurve=true",
+        "ApplyLookTable=true",
+        "ApplyBaselineExposureOffset=true",
+        "ApplyHueSatMap=true",
+        "DCPIlluminant=0",
+    ]
+
+
+def build_pp3(params: dict, color_managed: bool = True) -> str:
     """Render Lumalapse params as a PP3 processing profile."""
     exposure = float(params.get("exposure", 0.0))
     contrast = float(params.get("contrast", 0.0))
@@ -168,6 +192,9 @@ def build_pp3(params: dict) -> str:
     lines.append(f"Curve={curve}" if curve else "Curve=0;")
 
     lines += ["", "[HLRecovery]", "Enabled=true", "Method=Coloropp"]
+
+    if color_managed:
+        lines += _color_management_lines()
 
     if dehaze > 0:
         lines += ["", "[Dehaze]", "Enabled=true",

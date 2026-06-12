@@ -8,7 +8,14 @@
 - **RAW 序列导入**:基于 LibRaw(rawpy),支持 ARW / CR2 / CR3 / NEF / DNG / RAF / ORF / RW2 等;也支持 JPEG/TIFF 序列
 - **曝光曲线**:逐帧计算线性光 log2 亮度曲线,并从 EXIF 读取相机 EV(快门/光圈/ISO)曲线
 - **关键帧调色**:在任意帧设置 曝光 / 高光 / 阴影 / 白色色阶 / 黑色色阶 / 对比度 / 饱和度 / 去雾(暗通道先验)/ 色温,帧间平滑插值
-- **基于曝光的去闪**:对亮度曲线做高斯平滑,差值作为逐帧 EV 补偿;有意的曝光渐变(ramp)会被保留
+- **基于曝光的去闪**:解析式(对亮度曲线高斯平滑,差值作逐帧 EV 补偿,保留有意的渐变)
+  与**视觉式**(渲染小尺寸成品并实测亮度,迭代收敛——LRTimelapse 同思路,任何引擎/闪烁类型都精确;
+  `deflicker --visual` 或 GUI「计算视觉去闪」)
+- **圣杯模式**:日转夜拍摄中相机阶梯调整快门/ISO 造成的亮度跳变,依据 EXIF EV 曲线自动补偿抹平
+  (`lumalapse holygrail` 或 GUI 复选框)
+- **DCP 相机色彩档**:RawTherapee 引擎自动匹配相机专属 DCP 校准(色相/饱和度查找表、
+  相机色调曲线、baseline exposure——与 Adobe Camera Raw 同机制);
+  可用环境变量 `LUMALAPSE_DCP` 强制指定 .dcp 文件(如 Adobe DNG Converter 提供的档案)
 - **视频导出**:内置 ffmpeg(imageio-ffmpeg),支持 H.264 / H.265 / ProRes
 - **双渲染引擎**:`builtin`(numpy,快速、实时预览)与 `rawtherapee`(通过
   rawtherapee-cli 调用 [RawTherapee](https://rawtherapee.com) 的成熟 RAW 管线:

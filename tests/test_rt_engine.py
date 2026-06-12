@@ -35,7 +35,35 @@ def test_pp3():
     print("PP3 generation OK")
 
 
+def test_dcp():
+    import os
+
+    pp3 = build_pp3({})
+    assert "[Color Management]" in pp3
+    assert "InputProfile=(cameraICC)" in pp3, "auto camera DCP must be default"
+    assert "ApplyLookTable=true" in pp3 and "ToneCurve=true" in pp3
+
+    assert "[Color Management]" not in build_pp3({}, color_managed=False)
+
+    # Env override forces an explicit .dcp file.
+    fake = Path(__file__).resolve()  # any existing file
+    os.environ["LUMALAPSE_DCP"] = str(fake)
+    try:
+        # forward slashes: backslashes are escape characters in PP3/GKeyFile
+        assert f"InputProfile=file:{fake.as_posix()}" in build_pp3({})
+    finally:
+        del os.environ["LUMALAPSE_DCP"]
+    os.environ["LUMALAPSE_DCP"] = r"C:\does\not\exist.dcp"
+    try:
+        assert "InputProfile=(cameraICC)" in build_pp3({}), "missing file must fall back"
+    finally:
+        del os.environ["LUMALAPSE_DCP"]
+    print("DCP profile selection OK")
+
+
 def test_render(image: str):
+    import os
+
     eng = RawTherapeeEngine()
     base = eng.render(image, {}, max_dim=480)
     plus1 = eng.render(image, {"exposure": 1.0}, max_dim=480)
@@ -50,9 +78,25 @@ def test_render(image: str):
     print(f"saturation=0 residual chroma: {chroma:.2f}")
     assert chroma < 3.0, "saturation=0 must desaturate the RT render"
 
+    # Forcing a bundled DCP must change the rendered colors vs auto-match.
+    dcp_dir = Path(eng.cli).parent / "dcpprofiles"
+    candidates = sorted(dcp_dir.glob("*.dcp")) if dcp_dir.is_dir() else []
+    if candidates:
+        os.environ["LUMALAPSE_DCP"] = str(candidates[0])
+        try:
+            forced = eng.render(image, {}, max_dim=480)
+        finally:
+            del os.environ["LUMALAPSE_DCP"]
+        diff = np.abs(forced.astype(int) - base.astype(int)).mean()
+        print(f"forced DCP ({candidates[0].name}) vs auto: mean diff {diff:.2f}")
+        assert diff > 0.5, "explicit DCP must actually affect colors"
+    else:
+        print("no bundled DCPs found - forced-DCP check skipped")
+
 
 if __name__ == "__main__":
     test_pp3()
+    test_dcp()
     cli = find_cli()
     if not cli:
         print("rawtherapee-cli not found - render checks SKIPPED")
