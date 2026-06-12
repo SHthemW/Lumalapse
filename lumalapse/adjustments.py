@@ -1,4 +1,12 @@
-"""Per-frame image adjustments: exposure, dehaze, saturation, contrast, temperature."""
+"""Per-frame image adjustments.
+
+Tone pipeline (exposure, whites/blacks, highlights/shadows) runs on UNCLIPPED
+linear-light data: an exposure push may send values past 1.0, and the
+whites/highlights controls can pull that overshoot back into range before
+anything is clipped — this is what lets the RAW's headroom be recovered
+instead of discarded. Display-referred ops (dehaze, contrast, saturation)
+follow after gamma encoding.
+"""
 
 from __future__ import annotations
 
@@ -42,11 +50,23 @@ def dehaze_dark_channel(img: np.ndarray, strength: float, omega: float = 0.85, t
     return np.clip(out, 0.0, 1.0)
 
 
-def apply_adjustments(linear_rgb: np.ndarray, params: dict) -> np.ndarray:
-    """Apply grading params to a linear-light RGB float image. Returns uint8 sRGB."""
+def _smooth01(x: np.ndarray) -> np.ndarray:
+    """Smoothstep clamped to [0, 1]."""
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def _display_luma(img: np.ndarray) -> np.ndarray:
+    """Approximate display-referred luma of unclipped linear RGB, for tone masks."""
+    return linear_to_srgb(np.clip(img @ LUMA, 0.0, 1.0))
+
+
+def apply_tone(linear_rgb: np.ndarray, params: dict) -> np.ndarray:
+    """Exposure / whites / blacks / highlights / shadows on unclipped linear data."""
     img = linear_rgb
 
-    # Exposure + white-balance shift act as gains in linear light.
+    # Exposure + white-balance shift are plain gains. No clipping here:
+    # overshoot stays available for the controls below.
     gain = 2.0 ** float(params.get("exposure", 0.0))
     temp = float(params.get("temperature", 0.0))
     if temp != 0.0:
@@ -54,6 +74,36 @@ def apply_adjustments(linear_rgb: np.ndarray, params: dict) -> np.ndarray:
         img = img * (gain * wb)
     elif gain != 1.0:
         img = img * gain
+
+    # Whites / blacks: move the linear endpoints (levels). whites=-1 maps
+    # linear 2.0 down to white, recovering up to 1 EV of overshoot; whites=+1
+    # brightens by clipping the top stop. blacks lifts or crushes the floor.
+    whites = float(params.get("whites", 0.0))
+    blacks = float(params.get("blacks", 0.0))
+    if whites != 0.0 or blacks != 0.0:
+        white_p = 2.0 ** (-whites)
+        black_p = -0.025 * blacks
+        img = (img - black_p) / (white_p - black_p)
+
+    # Highlights / shadows: luminance-masked EV gains. The highlight mask is 1
+    # for anything at/above display white, so negative values compress >1 data
+    # back into range (up to ~1.4 EV) with a smooth falloff into the midtones.
+    highlights = float(params.get("highlights", 0.0))
+    if highlights != 0.0:
+        mask = _smooth01((_display_luma(img) - 0.45) / 0.55)
+        img = img * (2.0 ** (1.4 * highlights * mask))[:, :, None]
+
+    shadows = float(params.get("shadows", 0.0))
+    if shadows != 0.0:
+        mask = _smooth01((0.5 - _display_luma(img)) / 0.5)
+        img = img * (2.0 ** (1.4 * shadows * mask))[:, :, None]
+
+    return img
+
+
+def apply_adjustments(linear_rgb: np.ndarray, params: dict) -> np.ndarray:
+    """Apply grading params to a linear-light RGB float image. Returns uint8 sRGB."""
+    img = apply_tone(linear_rgb, params)
 
     img = linear_to_srgb(img)
 

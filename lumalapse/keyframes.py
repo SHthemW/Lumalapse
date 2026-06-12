@@ -7,18 +7,27 @@ from dataclasses import dataclass, field
 import numpy as np
 
 # Editable parameters and their defaults / ranges (used by GUI and CLI validation).
+# Order defines the GUI panel layout.
 PARAM_DEFAULTS = {
     "exposure": 0.0,    # EV offset
+    "highlights": 0.0,  # -1..1 masked EV gain on bright areas (- recovers overshoot)
+    "shadows": 0.0,     # -1..1 masked EV gain on dark areas
+    "whites": 0.0,      # -1..1 white point (levels); - recovers up to 1 EV of overshoot
+    "blacks": 0.0,      # -1..1 black point (levels); + lifts, - crushes
+    "contrast": 0.0,    # -1..1 s-curve strength
     "saturation": 1.0,  # 0 = grayscale, 1 = unchanged
     "dehaze": 0.0,      # 0..1 strength of dark-channel dehaze
-    "contrast": 0.0,    # -1..1 s-curve strength
     "temperature": 0.0, # -1..1 cool..warm shift
 }
 PARAM_RANGES = {
     "exposure": (-5.0, 5.0),
+    "highlights": (-1.0, 1.0),
+    "shadows": (-1.0, 1.0),
+    "whites": (-1.0, 1.0),
+    "blacks": (-1.0, 1.0),
+    "contrast": (-1.0, 1.0),
     "saturation": (0.0, 3.0),
     "dehaze": (0.0, 1.0),
-    "contrast": (-1.0, 1.0),
     "temperature": (-1.0, 1.0),
 }
 

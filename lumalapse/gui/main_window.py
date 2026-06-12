@@ -25,12 +25,20 @@ PREVIEW_MAX_DIM = 1100
 
 PARAM_LABELS = {
     "exposure": "曝光 (EV)",
+    "highlights": "高光",
+    "shadows": "阴影",
+    "whites": "白色色阶",
+    "blacks": "黑色色阶",
+    "contrast": "对比度",
     "saturation": "饱和度",
     "dehaze": "去雾",
-    "contrast": "对比度",
     "temperature": "色温",
 }
-PARAM_STEPS = {"exposure": 0.1, "saturation": 0.05, "dehaze": 0.05, "contrast": 0.05, "temperature": 0.05}
+PARAM_STEPS = {
+    "exposure": 0.1, "highlights": 0.05, "shadows": 0.05, "whites": 0.05,
+    "blacks": 0.05, "contrast": 0.05, "saturation": 0.05, "dehaze": 0.05,
+    "temperature": 0.05,
+}
 
 
 # ---------------------------------------------------------------- worker threads
