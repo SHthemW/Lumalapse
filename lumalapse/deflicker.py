@@ -24,6 +24,28 @@ def gaussian_smooth(values: np.ndarray, sigma: float) -> np.ndarray:
     return np.convolve(padded, kernel, mode="valid")
 
 
+def holy_grail_corrections(ev_values, strength: float = 10.0) -> np.ndarray:
+    """Neutralize discrete exposure-setting steps using the EXIF EV curve.
+
+    During day/night ("holy grail") timelapses the camera steps shutter/ISO,
+    making the rendered brightness jump by the EV delta in the opposite
+    direction. Subtracting the smoothed EV trend isolates those steps;
+    applying the residual as exposure compensation cancels the jumps while
+    leaving the scene's own gradual brightness change untouched.
+
+    ev_values may contain None (frames without EXIF); they are interpolated.
+    Returns zeros if no frame has EV data.
+    """
+    ev = np.array([np.nan if v is None else float(v) for v in ev_values], dtype=np.float64)
+    n = ev.size
+    valid = ~np.isnan(ev)
+    if n < 2 or not valid.any():
+        return np.zeros(n)
+    idx = np.arange(n)
+    ev = np.interp(idx, idx[valid], ev[valid])
+    return ev - gaussian_smooth(ev, sigma=strength)
+
+
 def deflicker_corrections(
     luminance: list[float] | np.ndarray,
     exposure_ev: np.ndarray | None = None,

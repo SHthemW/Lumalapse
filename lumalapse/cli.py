@@ -173,6 +173,25 @@ def keyframe_list(project_path):
 
 @main.command()
 @click.argument("project_path", type=click.Path(exists=True))
+@click.option("--enable/--disable", default=True, help="Turn holy-grail compensation on/off")
+def holygrail(project_path, enable):
+    """EXIF-based exposure-step neutralization for day/night ("holy grail") shots.
+
+    Cancels the brightness jumps caused by in-camera shutter/ISO changes,
+    using the EV curve read from EXIF during analysis.
+    """
+    proj = _load_project(project_path)
+    if enable and not proj.has_exif_ev():
+        raise click.ClickException(
+            "No EXIF exposure data in this sequence (shutter/aperture/ISO missing), "
+            "holy-grail compensation has nothing to work with.")
+    proj.holy_grail_enabled = enable
+    proj.save()
+    click.echo(f"Holy-grail compensation {'enabled' if enable else 'disabled'}")
+
+
+@main.command()
+@click.argument("project_path", type=click.Path(exists=True))
 @click.argument("name", type=click.Choice(["builtin", "rawtherapee"]), required=False)
 def engine(project_path, name):
     """Show or set the rendering engine.

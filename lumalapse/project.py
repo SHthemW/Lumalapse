@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from . import analysis, loader
-from .deflicker import deflicker_corrections
+from .deflicker import deflicker_corrections, holy_grail_corrections
 from .keyframes import Keyframe, interpolate_params
 
 PROJECT_SUFFIX = ".llproj"
@@ -30,6 +30,7 @@ class Project:
     engine: str = "builtin"                        # rendering engine, see lumalapse.engines
     deflicker_enabled: bool = False
     deflicker_strength: float = 10.0
+    holy_grail_enabled: bool = False               # EXIF-based exposure-step neutralization
     analysis: dict | None = None                   # {"luminance": [...], "ev": [...]}
     path: str | None = None                        # where this project file lives
 
@@ -81,6 +82,7 @@ class Project:
             engine=data.get("engine", "builtin"),
             deflicker_enabled=data.get("deflicker_enabled", False),
             deflicker_strength=data.get("deflicker_strength", 10.0),
+            holy_grail_enabled=data.get("holy_grail_enabled", False),
             analysis=data.get("analysis"),
             path=str(path),
         )
@@ -97,6 +99,7 @@ class Project:
             "engine": self.engine,
             "deflicker_enabled": self.deflicker_enabled,
             "deflicker_strength": self.deflicker_strength,
+            "holy_grail_enabled": self.holy_grail_enabled,
             "analysis": self.analysis,
         }
         path.write_text(json.dumps(data, indent=1), encoding="utf-8")
@@ -138,9 +141,17 @@ class Project:
 
     # ---------- effective per-frame parameters ----------
 
+    def has_exif_ev(self) -> bool:
+        return bool(self.analysis) and any(v is not None for v in self.analysis.get("ev", []))
+
     def frame_params(self) -> dict[str, np.ndarray]:
-        """Interpolated params for every frame, with deflicker folded into exposure."""
+        """Interpolated params for every frame, with holy-grail compensation and
+        deflicker folded into exposure (in that order: deflicker sees the result)."""
         params = interpolate_params(self.keyframes, self.n_frames, mode=self.interp_mode)
+        if self.holy_grail_enabled and self.n_frames > 1:
+            ev = self.ensure_analysis()["ev"]
+            params["exposure"] = params["exposure"] + holy_grail_corrections(
+                ev, strength=self.deflicker_strength)
         if self.deflicker_enabled and self.n_frames > 1:
             lum = self.ensure_analysis()["luminance"]
             corr = deflicker_corrections(lum, params["exposure"], strength=self.deflicker_strength)

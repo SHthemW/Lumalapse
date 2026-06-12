@@ -151,13 +151,18 @@ def _build_keyframe_box(win) -> QGroupBox:
 
 
 def _build_deflicker_box(win) -> QGroupBox:
-    box = QGroupBox("去闪 (Deflicker)")
+    box = QGroupBox("曝光平滑 (Deflicker)")
     form = QFormLayout(box)
     win.df_enable = QCheckBox("启用基于曝光的去闪")
     win.df_enable.toggled.connect(win._on_deflicker_changed)
+    win.hg_enable = QCheckBox("圣杯模式 (EXIF 阶梯补偿)")
+    win.hg_enable.setToolTip(
+        "日转夜延时中相机改变快门/ISO 造成的亮度跳变,\n根据 EXIF 自动补偿抹平。需要序列带曝光元数据。")
+    win.hg_enable.toggled.connect(win._on_deflicker_changed)
     win.df_strength = ParamSlider(1, 200, 10, 1, decimals=0)
     win.df_strength.valueChanged.connect(win._on_deflicker_changed)
     form.addRow(win.df_enable)
+    form.addRow(win.hg_enable)
     form.addRow("平滑强度(帧)", win.df_strength)
     return box
 
@@ -183,6 +188,7 @@ def set_controls_enabled(win, enabled: bool):
         win.btn_add_kf,
         win.btn_del_kf,
         win.df_enable,
+        win.hg_enable,
         win.df_strength,
         win.btn_export,
         win.engine_combo,

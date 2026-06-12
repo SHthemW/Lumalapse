@@ -155,6 +155,13 @@ class MainWindow(QMainWindow):
         self.engine_combo.setCurrentIndex(max(0, self.engine_combo.findData(project.engine)))
         self.engine_combo.blockSignals(False)
         self._set_enabled(True)
+        has_ev = project.has_exif_ev()
+        self.hg_enable.blockSignals(True)
+        self.hg_enable.setChecked(project.holy_grail_enabled and has_ev)
+        self.hg_enable.blockSignals(False)
+        self.hg_enable.setEnabled(has_ev)  # after _set_enabled: stays off without EXIF
+        if not has_ev:
+            self.hg_enable.setToolTip("此序列没有 EXIF 曝光数据,圣杯补偿不可用")
         self.setWindowTitle(f"Lumalapse - {Path(project.folder).name} ({n_frames} 帧)")
         self.current_frame = -1
         self.refresh_curves()
@@ -228,6 +235,7 @@ class MainWindow(QMainWindow):
         if self.project is None:
             return
         self.project.deflicker_enabled = self.df_enable.isChecked()
+        self.project.holy_grail_enabled = self.hg_enable.isChecked()
         self.project.deflicker_strength = self.df_strength.value()
         self.refresh_curves()
         self._preview_timer.start()
