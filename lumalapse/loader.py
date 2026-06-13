@@ -8,6 +8,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from .acceleration import accelerated_resize
+
 RAW_EXTS = {
     ".arw", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".dng", ".raf",
     ".orf", ".rw2", ".pef", ".srw", ".x3f", ".raw", ".sr2", ".kdc",
@@ -83,14 +85,13 @@ def load_linear(path: str | Path, half_size: bool = False, max_dim: int | None =
         srgb = data[:, :, ::-1].astype(np.float32) / maxval  # BGR -> RGB
         img = srgb_to_linear(srgb)
         if half_size:
-            img = cv2.resize(img, (img.shape[1] // 2, img.shape[0] // 2), interpolation=cv2.INTER_AREA)
+            img = accelerated_resize(img, (img.shape[1] // 2, img.shape[0] // 2), cv2.INTER_AREA)
 
     if max_dim is not None:
         h, w = img.shape[:2]
         scale = max_dim / max(h, w)
         if scale < 1.0:
-            img = cv2.resize(img, (max(1, round(w * scale)), max(1, round(h * scale))),
-                             interpolation=cv2.INTER_AREA)
+            img = accelerated_resize(img, (max(1, round(w * scale)), max(1, round(h * scale))), cv2.INTER_AREA)
     return np.ascontiguousarray(img)
 
 

@@ -78,6 +78,7 @@ def export_video(
     quality: int = 17,
     half_size: bool = False,
     engine_name: str | None = None,
+    acceleration: str | None = None,
     keep_jpg: bool = False,
     progress=None,
     cancelled=None,
@@ -89,6 +90,8 @@ def export_video(
         raise ValueError(f"Unknown codec {codec!r}; choose from {sorted(CODEC_ARGS)}")
     out_path = str(Path(out_path).resolve())
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    if acceleration is not None:
+        project.acceleration = acceleration
     if engine_name == "rawtherapee":
         return _export_jpg_sequence(project, out_path, fps, width, codec, quality, keep_jpg, progress, cancelled)
 

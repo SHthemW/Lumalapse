@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 import pyqtgraph as pg
 
 from ..keyframes import PARAM_DEFAULTS, PARAM_RANGES
+from ..acceleration import status_text
 from .param_controls import PARAM_LABELS, PARAM_STEPS, ParamSlider
 from .preview_view import PreviewView
 
@@ -173,6 +174,15 @@ def _build_engine_box(win) -> QGroupBox:
     win.engine_combo.addItem("RawTherapee (高质量)", "rawtherapee")
     win.engine_combo.currentIndexChanged.connect(win._on_engine_changed)
     form.addRow(win.engine_combo)
+    win.accel_combo = QComboBox()
+    win.accel_combo.addItem("自动使用 GPU", "auto")
+    win.accel_combo.addItem("关闭 GPU 加速", "off")
+    win.accel_combo.currentIndexChanged.connect(win._on_acceleration_changed)
+    form.addRow("GPU 加速", win.accel_combo)
+    win.accel_status = QLabel(status_text("auto"))
+    win.accel_status.setWordWrap(True)
+    win.accel_status.setStyleSheet("color:#888;")
+    form.addRow(win.accel_status)
     note = QLabel("RawTherapee 引擎预览较慢,\n但色彩科学与高光重建更佳")
     note.setStyleSheet("color:#888;")
     form.addRow(note)
@@ -189,6 +199,7 @@ def set_controls_enabled(win, enabled: bool):
         win.df_strength,
         win.btn_export,
         win.engine_combo,
+        win.accel_combo,
         *win.param_spins.values(),
     )
     for control in controls:

@@ -29,6 +29,7 @@ class Project:
     keyframes: list = field(default_factory=list)  # list[Keyframe]
     interp_mode: str = "smooth"                    # "smooth" | "linear"
     engine: str = "builtin"                        # rendering engine, see lumalapse.engines
+    acceleration: str = "auto"                     # "auto" | "off"
     deflicker_enabled: bool = False
     deflicker_strength: float = 10.0
     develop_profile: dict | None = None
@@ -81,6 +82,7 @@ class Project:
             keyframes=[Keyframe.from_dict(k) for k in data.get("keyframes", [])],
             interp_mode=data.get("interp_mode", "smooth"),
             engine=data.get("engine", "builtin"),
+            acceleration=data.get("acceleration", "auto"),
             deflicker_enabled=data.get("deflicker_enabled", False),
             deflicker_strength=data.get("deflicker_strength", 10.0),
             develop_profile=data.get("develop_profile"),
@@ -98,6 +100,7 @@ class Project:
             "keyframes": [k.to_dict() for k in self.keyframes],
             "interp_mode": self.interp_mode,
             "engine": self.engine,
+            "acceleration": self.acceleration,
             "deflicker_enabled": self.deflicker_enabled,
             "deflicker_strength": self.deflicker_strength,
             "develop_profile": self.develop_profile,

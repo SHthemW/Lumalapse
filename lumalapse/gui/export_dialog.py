@@ -43,6 +43,11 @@ class ExportDialog(QDialog):
         self.render_engine.addItem("当前项目引擎", None)
         self.render_engine.addItem("高质量 RAW 冲洗 (RawTherapee)", "rawtherapee")
         form.addRow("渲染质量", self.render_engine)
+        self.acceleration = QComboBox()
+        self.acceleration.addItem("使用项目设置", None)
+        self.acceleration.addItem("自动使用 GPU", "auto")
+        self.acceleration.addItem("关闭 GPU 加速", "off")
+        form.addRow("GPU 加速", self.acceleration)
         self.codec = QComboBox()
         self.codec.addItems(["h264", "h265", "prores"])
         form.addRow("编码", self.codec)
@@ -72,5 +77,6 @@ class ExportDialog(QDialog):
             "quality": self.quality.value(),
             "half_size": self.half.isChecked(),
             "engine_name": self.render_engine.currentData(),
+            "acceleration": self.acceleration.currentData(),
             "keep_jpg": self.keep_jpg.isChecked(),
         }

@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import cv2
 import numpy as np
 
+from .acceleration import accelerated_resize, apply_acceleration
 from .engines import get_engine
 from .project import Project
 
@@ -30,6 +31,7 @@ def render_frame(
     """
     if all_params is None:
         all_params = project.frame_params()
+    apply_acceleration(project.acceleration)
     engine = get_engine(project.engine)
     return engine.render(project.files[idx], _params_at(all_params, idx),
                          half_size=half_size, max_dim=max_dim, cache=cache)
@@ -56,6 +58,7 @@ def render_sequence(
     concurrently; frames are still yielded in order.
     """
     all_params = project.frame_params()
+    apply_acceleration(project.acceleration)
     engine = get_engine(engine_name or project.engine)
     jobs = max(1, getattr(engine, "parallel_jobs", 1))
     size = None
@@ -65,7 +68,7 @@ def render_sequence(
         if size is None:
             size = even_size(frame.shape[1], frame.shape[0], width)
         if (frame.shape[1], frame.shape[0]) != size:
-            frame = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
+            frame = accelerated_resize(frame, size, cv2.INTER_AREA)
         if progress:
             progress(idx + 1, project.n_frames)
         return idx, frame

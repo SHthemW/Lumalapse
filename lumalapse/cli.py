@@ -224,6 +224,32 @@ def deflicker(project_path, enable, strength):
     click.echo(f"Deflicker {state}")
 
 
+@main.command("gpu")
+@click.argument("project_path", type=click.Path(exists=True), required=False)
+@click.option("--enable/--disable", default=None, help="Set project GPU acceleration mode")
+def gpu(project_path, enable):
+    """Show GPU acceleration capability, optionally updating a project."""
+    from .acceleration import ACCEL_AUTO, ACCEL_OFF, apply_acceleration, detect_gpu, status_text
+
+    mode = ACCEL_AUTO if enable is not False else ACCEL_OFF
+    if project_path:
+        proj = _load_project(project_path)
+        if enable is not None:
+            proj.acceleration = mode
+            proj.save()
+        mode = proj.acceleration
+    info = apply_acceleration(mode)
+    click.echo(f"GPU mode: {mode}")
+    click.echo(status_text(mode))
+    if info.get("available"):
+        gb = info["memory_bytes"] / 1024**3
+        click.echo(f"Device: {info['vendor']} {info['name']}")
+        click.echo(f"OpenCL: {info['version']}, compute units: {info['compute_units']}, memory: {gb:.1f} GB")
+    else:
+        detected = detect_gpu()
+        click.echo(detected["summary"])
+
+
 @main.command()
 @click.argument("project_path", type=click.Path(exists=True))
 @click.option("-o", "--output", type=click.Path(), required=True, help="Output video file (.mp4/.mov)")
@@ -235,9 +261,10 @@ def deflicker(project_path, enable, strength):
 @click.option("--half-size", is_flag=True, help="Demosaic RAWs at half resolution (much faster)")
 @click.option("--engine", "engine_name", type=click.Choice(["builtin", "rawtherapee"]),
               default=None, help="Override the project's rendering engine for this export")
+@click.option("--gpu/--no-gpu", "use_gpu", default=None, help="Override GPU acceleration for this export")
 @click.option("--high-quality", is_flag=True, help="Export through RawTherapee without changing the project engine")
 @click.option("--keep-jpg", is_flag=True, help="Keep intermediate JPEG frames for RawTherapee exports")
-def export(project_path, output, fps, width, codec, quality, half_size, engine_name, high_quality, keep_jpg):
+def export(project_path, output, fps, width, codec, quality, half_size, engine_name, use_gpu, high_quality, keep_jpg):
     """Render all frames and export the sequence as a video."""
     from .export import export_video
 
@@ -246,11 +273,13 @@ def export(project_path, output, fps, width, codec, quality, half_size, engine_n
     proj.save()
     if high_quality:
         engine_name = "rawtherapee"
+    acceleration = None if use_gpu is None else ("auto" if use_gpu else "off")
     bar, cb = _progress_bar("Rendering")
     try:
         out = export_video(proj, output, fps=fps, width=width, codec=codec,
                            quality=quality, half_size=half_size,
-                           engine_name=engine_name, keep_jpg=keep_jpg, progress=cb)
+                           engine_name=engine_name, acceleration=acceleration,
+                           keep_jpg=keep_jpg, progress=cb)
     finally:
         bar.__exit__(None, None, None)
     click.echo(f"Exported: {out}")
