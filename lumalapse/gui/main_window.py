@@ -1,4 +1,4 @@
-"""Lumalapse GUI: preview, exposure curve, keyframe editing, deflicker, export."""
+﻿"""Lumalapse GUI: preview, exposure curve, keyframe editing, deflicker, export."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QProgressDialog
 
+from ..engines.rawtherapee_profile import read_pp3_params, save_pp3
 from ..keyframes import PARAM_DEFAULTS, interpolate_params
 from ..project import PROJECT_SUFFIX, Project
 from ..settings import load_settings, update_settings
@@ -78,7 +79,7 @@ class MainWindow(QMainWindow):
         self._analyze_and_load(project)
 
     def open_project(self):
-        path, _ = QFileDialog.getOpenFileName(self, "打开项目", "", f"Lumalapse 项目 (*{PROJECT_SUFFIX})")
+        path, _ = QFileDialog.getOpenFileName(self, "鎵撳紑椤圭洰", "", f"Lumalapse 椤圭洰 (*{PROJECT_SUFFIX})")
         if path:
             self._analyze_and_load(Project.load(path))
 
@@ -86,11 +87,11 @@ class MainWindow(QMainWindow):
         if project.analysis and len(project.analysis.get("luminance", [])) == project.n_frames:
             self._load_project(project)
             return
-        dlg = QProgressDialog("正在分析曝光曲线...", "取消", 0, project.n_frames, self)
+        dlg = QProgressDialog("姝ｅ湪鍒嗘瀽鏇濆厜鏇茬嚎...", "鍙栨秷", 0, project.n_frames, self)
         dlg.setWindowModality(Qt.WindowModal)
         thread = AnalyzeThread(project)
         thread.progressed.connect(lambda d, t: (dlg.setMaximum(t), dlg.setValue(d)))
-        thread.failed.connect(lambda tb: QMessageBox.critical(self, "分析失败", tb))
+        thread.failed.connect(lambda tb: QMessageBox.critical(self, "鍒嗘瀽澶辫触", tb))
         thread.finished.connect(lambda: (dlg.close(), self._load_project(project)))
         dlg.canceled.connect(thread.terminate)
         self._analyze_thread = thread
@@ -119,17 +120,17 @@ class MainWindow(QMainWindow):
         self.engine_combo.blockSignals(False)
         engine_flow.sync_acceleration_controls(self)
         self._set_enabled(True)
-        self.setWindowTitle(f"Lumalapse - {Path(project.folder).name} ({n_frames} 帧)")
+        self.setWindowTitle(f"Lumalapse - {Path(project.folder).name} ({n_frames} 甯?")
         self.current_frame = -1
         self.refresh_curves()
         self.set_frame(0)
         if errors:
-            self.statusBar().showMessage(f"分析跳过 {len(errors)} 张无法读取的图片，亮度曲线已用相邻帧补齐", 8000)
+            self.statusBar().showMessage(f"鍒嗘瀽璺宠繃 {len(errors)} 寮犳棤娉曡鍙栫殑鍥剧墖锛屼寒搴︽洸绾垮凡鐢ㄧ浉閭诲抚琛ラ綈", 8000)
 
     def save_project(self):
         if self.project:
             self.project.save()
-            self.statusBar().showMessage(f"已保存 {self.project.path}", 3000)
+            self.statusBar().showMessage(f"宸蹭繚瀛?{self.project.path}", 3000)
 
     def set_frame(self, idx: int):
         if self.project is None or idx == self.current_frame:
@@ -153,33 +154,56 @@ class MainWindow(QMainWindow):
     def _sync_panel_from_frame(self):
         project, idx = self.project, self.current_frame
         keyframe = project.get_keyframe(idx)
-        if keyframe:
-            params = keyframe.params
+        if project.engine == "rawtherapee":
+            params = read_pp3_params(project.files[idx])
+            if params is None:
+                params = keyframe.params if keyframe else None
+            if params is None:
+                interp = interpolate_params(project.keyframes, project.n_frames, project.interp_mode)
+                params = {name: float(arr[idx]) for name, arr in interp.items()}
         else:
-            interp = interpolate_params(project.keyframes, project.n_frames, project.interp_mode)
-            params = {name: float(arr[idx]) for name, arr in interp.items()}
+            if keyframe:
+                params = keyframe.params
+            else:
+                interp = interpolate_params(project.keyframes, project.n_frames, project.interp_mode)
+                params = {name: float(arr[idx]) for name, arr in interp.items()}
         self._loading_panel = True
         for name, editor in self.param_spins.items():
             editor.setValue(float(params.get(name, PARAM_DEFAULTS[name])))
         self._loading_panel = False
-        self.kf_status.setText("● 此帧是关键帧" if keyframe else "● 非关键帧(显示插值结果)")
+        self.kf_status.setText("鈼?姝ゅ抚鏄叧閿抚" if keyframe else "鈼?闈炲叧閿抚(鏄剧ず鎻掑€肩粨鏋?")
         self.btn_del_kf.setEnabled(keyframe is not None)
 
     def _on_param_changed(self):
         if self._loading_panel or self.project is None:
             return
-        self.project.set_keyframe(self.current_frame, self._panel_params())
-        self.kf_status.setText("● 此帧是关键帧")
+        params = self._panel_params()
+        if self.project.engine == "rawtherapee":
+            save_pp3(self.project.files[self.current_frame], params)
+            self._sync_panel_from_frame()
+            self.refresh_curves()
+            self._preview_timer.start()
+            return
+        self.project.set_keyframe(self.current_frame, params)
+        self.kf_status.setText("鈼?姝ゅ抚鏄叧閿抚")
         self.btn_del_kf.setEnabled(True)
         self.refresh_curves()
         self._preview_timer.start()
 
     def _panel_params(self) -> dict:
         return {name: editor.value() for name, editor in self.param_spins.items()}
+
     def add_keyframe(self):
         if self.project is None:
             return
-        self.project.set_keyframe(self.current_frame, self._panel_params())
+        params = self._panel_params()
+        if self.project.engine == "rawtherapee":
+            save_pp3(self.project.files[self.current_frame], params)
+            self._sync_panel_from_frame()
+            self.refresh_curves()
+            self._preview_timer.start()
+            return
+        self.project.set_keyframe(self.current_frame, params)
         self._sync_panel_from_frame()
         self.refresh_curves()
         self._preview_timer.start()
@@ -242,7 +266,7 @@ class MainWindow(QMainWindow):
 
     def _on_preview_failed(self, message: str):
         self.loading_label.hide()
-        self.statusBar().showMessage(f"预览渲染失败: {message}", 8000)
+        self.statusBar().showMessage(f"棰勮娓叉煋澶辫触: {message}", 8000)
 
     def _on_preview_rendered(self, idx: int, frame: np.ndarray):
         self.loading_label.hide()
@@ -274,3 +298,4 @@ class MainWindow(QMainWindow):
         if self.project:
             self.project.save()
         super().closeEvent(event)
+

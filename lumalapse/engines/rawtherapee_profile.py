@@ -93,6 +93,22 @@ def base_profile_text(source: str | Path | None = None) -> str:
     return DEFAULT_PROFILE_TEXT
 
 
+def read_pp3_params(source: str | Path) -> dict[str, float] | None:
+    path = sidecar_path(source)
+    if not path.exists():
+        return None
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.optionxform = str
+    parser.read_string(path.read_text(encoding="utf-8"))
+    return _params_from_parser(parser)
+
+
+def save_pp3(source: str | Path, params: dict) -> Path:
+    path = sidecar_path(source)
+    path.write_text(build_pp3(params, source_path=source), encoding="utf-8")
+    return path
+
+
 def build_pp3(params: dict, source_path: str | Path | None = None) -> str:
     parser = configparser.ConfigParser(interpolation=None)
     parser.optionxform = str
@@ -137,6 +153,56 @@ def build_pp3(params: dict, source_path: str | Path | None = None) -> str:
         exposure["CurveFromHistogramMatching"] = "true" if bool(v) else "false"
 
     return _write(parser)
+
+
+def _params_from_parser(parser: configparser.ConfigParser) -> dict[str, float]:
+    params = dict(PARAM_DEFAULTS)
+    if parser.has_section("Exposure"):
+        exp = parser["Exposure"]
+        params["exposure"] = _f(exp.get("Compensation"), params["exposure"])
+        params["contrast"] = _f(exp.get("Contrast"), 0.0) / 100.0
+        params["saturation"] = 1.0 + _f(exp.get("Saturation"), 0.0) / 100.0
+        params["highlights"], params["shadows"], params["whites"], params["blacks"] = _curve_params(exp.get("Curve", ""))
+        if exp.get("HistogramMatching") is not None:
+            params["_histogram_matching"] = exp.get("HistogramMatching", "false").lower() == "true"
+    if parser.has_section("Dehaze"):
+        dehaze = parser["Dehaze"].get("Strength")
+        if dehaze is not None:
+            params["dehaze"] = np.clip(_f(dehaze, 0.0) / 100.0, 0.0, 1.0)
+    if parser.has_section("White Balance"):
+        wb = parser["White Balance"]
+        if wb.get("Setting", "").lower() == "custom" and wb.get("Temperature") is not None:
+            params["temperature"] = np.clip((_f(wb.get("Temperature"), 5000.0) - 5000.0) / 2500.0, -1.0, 1.0)
+    return params
+
+
+def _curve_params(curve: str) -> tuple[float, float, float, float]:
+    if not curve or not curve.startswith("1;"):
+        return 0.0, 0.0, 0.0, 0.0
+    try:
+        vals = [float(x) for x in curve.split(";")[1:] if x != ""]
+    except ValueError:
+        return 0.0, 0.0, 0.0, 0.0
+    if len(vals) < 10:
+        return 0.0, 0.0, 0.0, 0.0
+    x0, y0, x1, y1, _x2, _y2, x3, y3, x4, y4 = vals[:10]
+    blacks = y0 / 0.08 if y0 > 0 else -x0 / 0.06 if x0 > 0 else 0.0
+    shadows = (y1 - 0.25) / 0.10
+    highlights = (y3 - 0.75) / 0.10
+    whites = (1.0 - x4) / 0.12 if x4 < 1.0 else (y4 - 1.0) / 0.12 if y4 > 1.0 else 0.0
+    return (
+        float(np.clip(highlights, -1.0, 1.0)),
+        float(np.clip(shadows, -1.0, 1.0)),
+        float(np.clip(whites, -1.0, 1.0)),
+        float(np.clip(blacks, -1.0, 1.0)),
+    )
+
+
+def _f(value, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
 
 
 def _tone_curve(highlights: float, shadows: float, whites: float, blacks: float) -> str:

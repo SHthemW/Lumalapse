@@ -34,6 +34,8 @@ class Project:
     deflicker_strength: float = 10.0
     develop_profile_enabled: bool = False
     develop_profile: dict | None = None
+    rt_sidecar_enabled: bool = False
+    rt_sidecar_params: dict | None = None
     analysis: dict | None = None                   # {"luminance": [...], "ev": [...]}
     path: str | None = None                        # where this project file lives
 
@@ -88,6 +90,8 @@ class Project:
             deflicker_strength=data.get("deflicker_strength", 10.0),
             develop_profile_enabled=data.get("develop_profile_enabled", False),
             develop_profile=data.get("develop_profile"),
+            rt_sidecar_enabled=data.get("rt_sidecar_enabled", False),
+            rt_sidecar_params=data.get("rt_sidecar_params"),
             analysis=data.get("analysis"),
             path=str(path),
         )
@@ -107,6 +111,8 @@ class Project:
             "deflicker_strength": self.deflicker_strength,
             "develop_profile_enabled": self.develop_profile_enabled,
             "develop_profile": self.develop_profile,
+            "rt_sidecar_enabled": self.rt_sidecar_enabled,
+            "rt_sidecar_params": self.rt_sidecar_params,
             "analysis": self.analysis,
         }
         path.write_text(json.dumps(data, indent=1), encoding="utf-8")
@@ -132,6 +138,13 @@ class Project:
         if needs_profile(self.files, self.develop_profile):
             self.develop_profile = estimate_camera_profile(self.files)
         return self.develop_profile
+
+    def ensure_rt_sidecar(self, frame: int = 0) -> dict | None:
+        if not self.files:
+            return None
+        from .engines.rawtherapee_profile import read_pp3_params
+
+        return read_pp3_params(self.files[min(max(frame, 0), self.n_frames - 1)])
 
     # ---------- keyframes ----------
 
