@@ -89,7 +89,7 @@ def build_ui(win):
     win.plot.addItem(win.playhead)
     legend = win.plot.addLegend(offset=(8, 8))
     legend.addItem(win.curve_lum, "原始亮度")
-    legend.addItem(win.curve_out, "调整后(含去闪)")
+    legend.addItem(win.curve_out, "调整后（含去闪）")
 
     win.frame_slider = QSlider(Qt.Horizontal)
     win.frame_slider.valueChanged.connect(win.set_frame)
@@ -164,7 +164,7 @@ def _build_deflicker_box(win) -> QGroupBox:
     win.df_strength = ParamSlider(1, 200, 10, 1, decimals=0)
     win.df_strength.valueChanged.connect(win._on_deflicker_changed)
     form.addRow(win.df_enable)
-    form.addRow("平滑强度(帧)", win.df_strength)
+    form.addRow("平滑强度(%)", win.df_strength)
     return box
 
 
@@ -189,7 +189,7 @@ def _build_engine_box(win) -> QGroupBox:
     win.engine_combo.addItem("RawTherapee (高质量)", "rawtherapee")
     win.engine_combo.currentIndexChanged.connect(win._on_engine_changed)
     form.addRow(win.engine_combo)
-    note = QLabel("RawTherapee 引擎预览较慢，但色彩科学与高光重建更佳")
+    note = QLabel("RawTherapee 引擎预览较慢，但色彩科学与高光重建更佳。")
     note.setWordWrap(True)
     note.setStyleSheet("color:#888;")
     form.addRow(note)

@@ -21,7 +21,7 @@ def on_engine_changed(win):
         choice = QMessageBox.question(
             win,
             "Lumalapse",
-            "未找到 RawTherapee。\n\n是否自动下载并安装？(约 100 MB，安装完成后将自动启用该引擎)\n\n"
+            "未找到 RawTherapee。\n\n是否自动下载安装？(约 100 MB，安装完成后将自动启用该引擎)\n\n"
             "也可以手动安装 https://rawtherapee.com 或设置环境变量 LUMALAPSE_RAWTHERAPEE。",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,

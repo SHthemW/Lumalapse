@@ -1,11 +1,11 @@
-﻿"""Lumalapse GUI: preview, exposure curve, keyframe editing, deflicker, export."""
+"""Lumalapse GUI: preview, exposure curve, keyframe editing, deflicker, export."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QProgressDialog
 
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self._analyze_and_load(project)
 
     def open_project(self):
-        path, _ = QFileDialog.getOpenFileName(self, "鎵撳紑椤圭洰", "", f"Lumalapse 椤圭洰 (*{PROJECT_SUFFIX})")
+        path, _ = QFileDialog.getOpenFileName(self, "打开项目", "", f"Lumalapse 项目 (*{PROJECT_SUFFIX})")
         if path:
             self._analyze_and_load(Project.load(path))
 
@@ -87,11 +87,11 @@ class MainWindow(QMainWindow):
         if project.analysis and len(project.analysis.get("luminance", [])) == project.n_frames:
             self._load_project(project)
             return
-        dlg = QProgressDialog("姝ｅ湪鍒嗘瀽鏇濆厜鏇茬嚎...", "鍙栨秷", 0, project.n_frames, self)
+        dlg = QProgressDialog("正在分析曝光曲线...", "取消", 0, project.n_frames, self)
         dlg.setWindowModality(Qt.WindowModal)
         thread = AnalyzeThread(project)
         thread.progressed.connect(lambda d, t: (dlg.setMaximum(t), dlg.setValue(d)))
-        thread.failed.connect(lambda tb: QMessageBox.critical(self, "鍒嗘瀽澶辫触", tb))
+        thread.failed.connect(lambda tb: QMessageBox.critical(self, "分析失败", tb))
         thread.finished.connect(lambda: (dlg.close(), self._load_project(project)))
         dlg.canceled.connect(thread.terminate)
         self._analyze_thread = thread
@@ -120,17 +120,17 @@ class MainWindow(QMainWindow):
         self.engine_combo.blockSignals(False)
         engine_flow.sync_acceleration_controls(self)
         self._set_enabled(True)
-        self.setWindowTitle(f"Lumalapse - {Path(project.folder).name} ({n_frames} 甯?")
+        self.setWindowTitle(f"Lumalapse - {Path(project.folder).name} ({n_frames} 帧)")
         self.current_frame = -1
         self.refresh_curves()
         self.set_frame(0)
         if errors:
-            self.statusBar().showMessage(f"鍒嗘瀽璺宠繃 {len(errors)} 寮犳棤娉曡鍙栫殑鍥剧墖锛屼寒搴︽洸绾垮凡鐢ㄧ浉閭诲抚琛ラ綈", 8000)
+            self.statusBar().showMessage(f"分析跳过 {len(errors)} 张无法读取的图片，亮度曲线已用相邻帧补齐", 8000)
 
     def save_project(self):
         if self.project:
             self.project.save()
-            self.statusBar().showMessage(f"宸蹭繚瀛?{self.project.path}", 3000)
+            self.statusBar().showMessage(f"已保存 {self.project.path}", 3000)
 
     def set_frame(self, idx: int):
         if self.project is None or idx == self.current_frame:
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
         for name, editor in self.param_spins.items():
             editor.setValue(float(params.get(name, PARAM_DEFAULTS[name])))
         self._loading_panel = False
-        self.kf_status.setText("鈼?姝ゅ抚鏄叧閿抚" if keyframe else "鈼?闈炲叧閿抚(鏄剧ず鎻掑€肩粨鏋?")
+        self.kf_status.setText("● 此帧是关键帧" if keyframe else "● 非关键帧(显示插值结果)")
         self.btn_del_kf.setEnabled(keyframe is not None)
 
     def _on_param_changed(self):
@@ -185,7 +185,7 @@ class MainWindow(QMainWindow):
             self._preview_timer.start()
             return
         self.project.set_keyframe(self.current_frame, params)
-        self.kf_status.setText("鈼?姝ゅ抚鏄叧閿抚")
+        self.kf_status.setText("● 此帧是关键帧")
         self.btn_del_kf.setEnabled(True)
         self.refresh_curves()
         self._preview_timer.start()
@@ -266,7 +266,7 @@ class MainWindow(QMainWindow):
 
     def _on_preview_failed(self, message: str):
         self.loading_label.hide()
-        self.statusBar().showMessage(f"棰勮娓叉煋澶辫触: {message}", 8000)
+        self.statusBar().showMessage(f"预览渲染失败: {message}", 8000)
 
     def _on_preview_rendered(self, idx: int, frame: np.ndarray):
         self.loading_label.hide()
@@ -298,4 +298,3 @@ class MainWindow(QMainWindow):
         if self.project:
             self.project.save()
         super().closeEvent(event)
-
