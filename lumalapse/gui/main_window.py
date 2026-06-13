@@ -144,6 +144,7 @@ class MainWindow(QMainWindow):
     def _load_project(self, project: Project):
         if not project.analysis:
             return
+        project.ensure_develop_profile()
         errors = project.analysis.get("errors") or []
         self.project = project
         project.save()
@@ -249,7 +250,7 @@ class MainWindow(QMainWindow):
         lum = np.asarray(project.analysis["luminance"], dtype=float)
         x = np.arange(project.n_frames)
         self.curve_lum.setData(x, lum)
-        params = project.frame_params()
+        params = project.frame_params(include_develop=False)
         self.curve_out.setData(x, lum + params["exposure"])
         kx = [keyframe.frame for keyframe in project.keyframes]
         self.kf_scatter.setData(kx, lum[kx] + params["exposure"][kx] if kx else [])

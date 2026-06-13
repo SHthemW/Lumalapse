@@ -21,6 +21,7 @@ class AnalyzeThread(QThread):
     def run(self):
         try:
             self.project.ensure_analysis(progress=lambda d, t: self.progressed.emit(d, t))
+            self.project.ensure_develop_profile()
         except Exception:
             self.failed.emit(traceback.format_exc())
 

@@ -10,6 +10,7 @@ import numpy as np
 
 from . import analysis, loader
 from .deflicker import deflicker_corrections
+from .develop import apply_profile, estimate_camera_profile, needs_profile
 from .keyframes import Keyframe, interpolate_params
 
 PROJECT_SUFFIX = ".llproj"
@@ -30,6 +31,7 @@ class Project:
     engine: str = "builtin"                        # rendering engine, see lumalapse.engines
     deflicker_enabled: bool = False
     deflicker_strength: float = 10.0
+    develop_profile: dict | None = None
     analysis: dict | None = None                   # {"luminance": [...], "ev": [...]}
     path: str | None = None                        # where this project file lives
 
@@ -81,6 +83,7 @@ class Project:
             engine=data.get("engine", "builtin"),
             deflicker_enabled=data.get("deflicker_enabled", False),
             deflicker_strength=data.get("deflicker_strength", 10.0),
+            develop_profile=data.get("develop_profile"),
             analysis=data.get("analysis"),
             path=str(path),
         )
@@ -97,6 +100,7 @@ class Project:
             "engine": self.engine,
             "deflicker_enabled": self.deflicker_enabled,
             "deflicker_strength": self.deflicker_strength,
+            "develop_profile": self.develop_profile,
             "analysis": self.analysis,
         }
         path.write_text(json.dumps(data, indent=1), encoding="utf-8")
@@ -113,6 +117,11 @@ class Project:
         if not self.analysis or len(self.analysis.get("luminance", [])) != self.n_frames:
             self.analysis = analysis.analyze_sequence(self.files, progress=progress)
         return self.analysis
+
+    def ensure_develop_profile(self) -> dict | None:
+        if needs_profile(self.files, self.develop_profile):
+            self.develop_profile = estimate_camera_profile(self.files)
+        return self.develop_profile
 
     # ---------- keyframes ----------
 
@@ -138,11 +147,13 @@ class Project:
 
     # ---------- effective per-frame parameters ----------
 
-    def frame_params(self) -> dict[str, np.ndarray]:
+    def frame_params(self, include_develop: bool = True) -> dict[str, np.ndarray]:
         """Interpolated params for every frame, with deflicker folded into exposure."""
         params = interpolate_params(self.keyframes, self.n_frames, mode=self.interp_mode)
         if self.deflicker_enabled and self.n_frames > 1:
             lum = self.ensure_analysis()["luminance"]
             corr = deflicker_corrections(lum, params["exposure"], strength=self.deflicker_strength)
             params["exposure"] = params["exposure"] + corr
+        if include_develop:
+            params = apply_profile(params, self.develop_profile)
         return params

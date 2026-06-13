@@ -28,6 +28,7 @@ def test_pp3():
     assert "[Dehaze]" in pp3 and "Strength=40" in pp3
     assert "Temperature=6250" in pp3
     assert "Curve=1;" in pp3, "tone params must produce a custom curve"
+    assert "HistogramMatching=false" in pp3
     assert "Method=Coloropp" in pp3
     assert "[Directional Pyramid Denoising]" in pp3
     assert "[LensProfile]" in pp3 and "LcMode=lfauto" in pp3
@@ -38,6 +39,8 @@ def test_pp3():
 
     neutral = build_pp3({})
     assert "Curve=0;" in neutral and "[Dehaze]" not in neutral
+    matched = build_pp3({"_histogram_matching": 1.0})
+    assert "HistogramMatching=true" in matched
     print("PP3 generation OK")
 
 

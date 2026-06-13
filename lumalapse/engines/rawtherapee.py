@@ -207,6 +207,7 @@ def build_pp3(params: dict) -> str:
     saturation = float(params.get("saturation", 1.0))
     dehaze = float(params.get("dehaze", 0.0))
     temperature = float(params.get("temperature", 0.0))
+    histogram_matching = bool(params.get("_histogram_matching", False))
 
     lines = [
         "[Version]",
@@ -215,6 +216,7 @@ def build_pp3(params: dict) -> str:
         "",
         "[Exposure]",
         "Auto=false",
+        f"HistogramMatching={'true' if histogram_matching else 'false'}",
         f"Compensation={exposure:.4f}",
         f"Contrast={round(np.clip(contrast, -1, 1) * 100)}",
         f"Saturation={round(np.clip(saturation - 1.0, -1, 2) * 100)}",
