@@ -232,15 +232,17 @@ def gpu(project_path, enable):
     from .acceleration import ACCEL_AUTO, ACCEL_OFF, apply_acceleration, detect_gpu, status_text
 
     mode = ACCEL_AUTO if enable is not False else ACCEL_OFF
+    engine = None
     if project_path:
         proj = _load_project(project_path)
         if enable is not None:
             proj.acceleration = mode
             proj.save()
         mode = proj.acceleration
+        engine = proj.engine
     info = apply_acceleration(mode)
     click.echo(f"GPU mode: {mode}")
-    click.echo(status_text(mode))
+    click.echo(status_text(mode, engine))
     if info.get("available"):
         gb = info["memory_bytes"] / 1024**3
         click.echo(f"Device: {info['vendor']} {info['name']}")

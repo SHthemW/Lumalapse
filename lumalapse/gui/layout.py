@@ -118,6 +118,7 @@ def build_ui(win):
     right_layout.addWidget(_build_keyframe_box(win))
     right_layout.addWidget(_build_deflicker_box(win))
     right_layout.addWidget(_build_engine_box(win))
+    right_layout.addWidget(_build_acceleration_box(win))
     right_layout.addStretch(1)
     win.btn_export = QPushButton("导出视频...")
     win.btn_export.clicked.connect(win.export_video)
@@ -174,18 +175,24 @@ def _build_engine_box(win) -> QGroupBox:
     win.engine_combo.addItem("RawTherapee (高质量)", "rawtherapee")
     win.engine_combo.currentIndexChanged.connect(win._on_engine_changed)
     form.addRow(win.engine_combo)
+    note = QLabel("RawTherapee 引擎预览较慢,\n但色彩科学与高光重建更佳")
+    note.setStyleSheet("color:#888;")
+    form.addRow(note)
+    return box
+
+
+def _build_acceleration_box(win) -> QGroupBox:
+    box = QGroupBox("GPU 加速")
+    form = QFormLayout(box)
     win.accel_combo = QComboBox()
     win.accel_combo.addItem("自动使用 GPU", "auto")
     win.accel_combo.addItem("关闭 GPU 加速", "off")
     win.accel_combo.currentIndexChanged.connect(win._on_acceleration_changed)
-    form.addRow("GPU 加速", win.accel_combo)
+    form.addRow(win.accel_combo)
     win.accel_status = QLabel(status_text("auto"))
     win.accel_status.setWordWrap(True)
     win.accel_status.setStyleSheet("color:#888;")
     form.addRow(win.accel_status)
-    note = QLabel("RawTherapee 引擎预览较慢,\n但色彩科学与高光重建更佳")
-    note.setStyleSheet("color:#888;")
-    form.addRow(note)
     return box
 
 

@@ -36,6 +36,7 @@ def on_engine_changed(win):
 
 def apply_engine(win, name: str):
     win.project.engine = name
+    refresh_acceleration_status(win)
     win.project.save()
     win._preview_timer.start()
 
@@ -79,7 +80,7 @@ def on_acceleration_changed(win):
     mode = win.accel_combo.currentData()
     win.project.acceleration = mode
     apply_acceleration(mode)
-    win.accel_status.setText(status_text(mode))
+    refresh_acceleration_status(win)
     win.project.save()
     win._preview_timer.start()
 
@@ -88,5 +89,11 @@ def sync_acceleration_controls(win):
     win.accel_combo.blockSignals(True)
     win.accel_combo.setCurrentIndex(max(0, win.accel_combo.findData(win.project.acceleration)))
     win.accel_combo.blockSignals(False)
-    win.accel_status.setText(status_text(win.project.acceleration))
     apply_acceleration(win.project.acceleration)
+    refresh_acceleration_status(win)
+
+
+def refresh_acceleration_status(win):
+    engine = win.project.engine if win.project else None
+    mode = win.project.acceleration if win.project else win.accel_combo.currentData()
+    win.accel_status.setText(status_text(mode, engine))

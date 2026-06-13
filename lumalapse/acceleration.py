@@ -86,7 +86,7 @@ def accelerated_resize(img, size: tuple[int, int], interpolation: int):
     return cv2.resize(img, size, interpolation=interpolation)
 
 
-def status_text(mode: str | None) -> str:
+def status_text(mode: str | None, engine: str | None = None) -> str:
     mode = normalize_mode(mode)
     info = detect_gpu()
     if mode == ACCEL_OFF:
@@ -94,6 +94,8 @@ def status_text(mode: str | None) -> str:
     if not info["available"]:
         return info["summary"]
     level = {"limited": "有限", "moderate": "中等", "high": "较高"}.get(info["level"], "有限")
+    if engine == "rawtherapee":
+        return f"{info['name']} - {level}加速：仅影响缩放和部分 OpenCV 步骤，RawTherapee 主渲染仍是 CPU"
     return f"{info['name']} - {level}加速：预览缩放/导出缩放可加速，RAW 解码与 RawTherapee 仍使用 CPU"
 
 

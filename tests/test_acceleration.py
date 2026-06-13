@@ -19,6 +19,8 @@ def test_acceleration_helpers_are_stable():
     assert normalize_mode("bad") == "auto"
     assert isinstance(info["available"], bool)
     assert status_text("auto")
+    if info["available"]:
+        assert "RawTherapee 主渲染仍是 CPU" in status_text("auto", "rawtherapee")
 
     off = apply_acceleration("off")
     assert off["mode"] == "off"
