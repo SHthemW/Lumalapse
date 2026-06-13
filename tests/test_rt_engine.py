@@ -28,19 +28,35 @@ def test_pp3():
     assert "[Dehaze]" in pp3 and "Strength=40" in pp3
     assert "Temperature=6250" in pp3
     assert "Curve=1;" in pp3, "tone params must produce a custom curve"
-    assert "HistogramMatching=false" in pp3
+    assert "HistogramMatching=true" in pp3
     assert "Method=Coloropp" in pp3
-    assert "[Directional Pyramid Denoising]" in pp3
     assert "[LensProfile]" in pp3 and "LcMode=lfauto" in pp3
     assert "[Color Management]" in pp3 and "ApplyLookTable=true" in pp3
+    assert "InputProfile=(cameraICC)" in pp3
+    assert "WorkingProfile=ProPhoto" in pp3
+    assert "OutputProfile=RTv4_sRGB" in pp3
     assert "[PostDemosaicSharpening]" in pp3
-    assert "[Sharpening]" in pp3
+    assert "[Sharpening]" in pp3 and "Enabled=false" in pp3
     assert "[RAW]" in pp3 and "CA=true" in pp3
+    assert "UseCA=false" in pp3
+    assert "Method=amaze" in pp3
 
     neutral = build_pp3({})
-    assert "Curve=0;" in neutral and "[Dehaze]" not in neutral
+    assert "Curve=4;" in neutral and "[Dehaze]" not in neutral
     matched = build_pp3({"_histogram_matching": 1.0})
     assert "HistogramMatching=true" in matched
+    assert "InputProfile=(cameraICC)" in neutral
+    assert "WorkingProfile=ProPhoto" in neutral
+    assert "OutputProfile=RTv4_sRGB" in neutral
+    assert "Enabled=false" in neutral
+    assert "CurveMode=FilmLike" in neutral
+
+    tmp = Path("testdata/dataset/0605_mini")
+    source = tmp / "DSC_0681.NEF"
+    sidecar = tmp / "DSC_0681.NEF.pp3"
+    custom = build_pp3({}, source_path=source)
+    assert "HistogramMatching=true" in sidecar.read_text(encoding="utf-8")
+    assert "HistogramMatching=true" in custom
     print("PP3 generation OK")
 
 
