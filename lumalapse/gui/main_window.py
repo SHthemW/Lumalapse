@@ -100,7 +100,7 @@ class MainWindow(QMainWindow):
     def _load_project(self, project: Project):
         if not project.analysis:
             return
-        project.ensure_develop_profile()
+        project.ensure_develop_profile(project.develop_profile_enabled)
         errors = project.analysis.get("errors") or []
         self.project = project
         project.save()
@@ -109,6 +109,9 @@ class MainWindow(QMainWindow):
         self.frame_slider.setRange(0, n_frames - 1)
         self.frame_spin.setRange(0, n_frames - 1)
         self.playhead.setBounds([0, n_frames - 1])
+        self.develop_enable.blockSignals(True)
+        self.develop_enable.setChecked(project.develop_profile_enabled)
+        self.develop_enable.blockSignals(False)
         self.df_enable.setChecked(project.deflicker_enabled)
         self.df_strength.setValue(project.deflicker_strength)
         self.engine_combo.blockSignals(True)
@@ -192,6 +195,17 @@ class MainWindow(QMainWindow):
             return
         self.project.deflicker_enabled = self.df_enable.isChecked()
         self.project.deflicker_strength = self.df_strength.value()
+        self.project.save()
+        self.refresh_curves()
+        self._preview_timer.start()
+
+    def _on_develop_changed(self):
+        if self.project is None:
+            return
+        self.project.develop_profile_enabled = self.develop_enable.isChecked()
+        if self.project.develop_profile_enabled:
+            self.project.ensure_develop_profile(True)
+        self.project.save()
         self.refresh_curves()
         self._preview_timer.start()
 
@@ -218,7 +232,13 @@ class MainWindow(QMainWindow):
         self.loading_label.show()
         self.loading_label.raise_()
         max_dim, half_size = self._preview_request_settings()
-        self.preview_thread.request(self.project, self.current_frame, self.project.frame_params(), max_dim, half_size)
+        self.preview_thread.request(
+            self.project,
+            self.current_frame,
+            self.project.frame_params(),
+            max_dim,
+            half_size,
+        )
 
     def _on_preview_failed(self, message: str):
         self.loading_label.hide()

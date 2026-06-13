@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
 )
 import pyqtgraph as pg
 
-from ..keyframes import PARAM_DEFAULTS, PARAM_RANGES
 from ..acceleration import status_text
+from ..keyframes import PARAM_DEFAULTS, PARAM_RANGES
 from .param_controls import PARAM_LABELS, PARAM_STEPS, ParamSlider
 from .preview_view import PreviewView
 
@@ -117,6 +117,7 @@ def build_ui(win):
     right_layout = QVBoxLayout(right)
     right_layout.addWidget(_build_keyframe_box(win))
     right_layout.addWidget(_build_deflicker_box(win))
+    right_layout.addWidget(_build_develop_box(win))
     right_layout.addWidget(_build_engine_box(win))
     right_layout.addWidget(_build_acceleration_box(win))
     right_layout.addStretch(1)
@@ -167,6 +168,19 @@ def _build_deflicker_box(win) -> QGroupBox:
     return box
 
 
+def _build_develop_box(win) -> QGroupBox:
+    box = QGroupBox("自带调色")
+    form = QFormLayout(box)
+    win.develop_enable = QCheckBox("启用项目内置调色基线")
+    win.develop_enable.toggled.connect(win._on_develop_changed)
+    form.addRow(win.develop_enable)
+    note = QLabel("关闭后仅保留当前关键帧参数，不再自动套用嵌入式 JPEG 估算的基线。")
+    note.setWordWrap(True)
+    note.setStyleSheet("color:#888;")
+    form.addRow(note)
+    return box
+
+
 def _build_engine_box(win) -> QGroupBox:
     box = QGroupBox("渲染引擎")
     form = QFormLayout(box)
@@ -175,7 +189,8 @@ def _build_engine_box(win) -> QGroupBox:
     win.engine_combo.addItem("RawTherapee (高质量)", "rawtherapee")
     win.engine_combo.currentIndexChanged.connect(win._on_engine_changed)
     form.addRow(win.engine_combo)
-    note = QLabel("RawTherapee 引擎预览较慢,\n但色彩科学与高光重建更佳")
+    note = QLabel("RawTherapee 引擎预览较慢，但色彩科学与高光重建更佳")
+    note.setWordWrap(True)
     note.setStyleSheet("color:#888;")
     form.addRow(note)
     return box
@@ -204,6 +219,7 @@ def set_controls_enabled(win, enabled: bool):
         win.btn_del_kf,
         win.df_enable,
         win.df_strength,
+        win.develop_enable,
         win.btn_export,
         win.engine_combo,
         win.accel_combo,
